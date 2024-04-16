@@ -1,3 +1,7 @@
+# environment:
+# placebo_api_local
+
+
 from typing import NamedTuple, Dict
 from placebo_api.utils import api_utils, date_utils
 from placebo.utils import snowflake_utils
@@ -14,8 +18,8 @@ import numpy as np
 import os 
 
 # list of hyperparameters
-Num_congestions_per_day = 10
-Num_of_days_to_look_back = 8
+Num_congestions_per_day = 5
+Num_of_days_to_look_back = 5
 percent_of_rating = 1
 
 class ConfusionMatrix:
@@ -29,13 +33,13 @@ class collectedConfusionMatrix():
     def __init__(self):
         self.collection = []
 
-    def calc_collected_confusion_metrics(self, ConfusionMatrix:ConfusionMatrix, from_date, monitored_uid, contingency_uid):
+    def calc_collected_confusion_metrics(self, ConfusionMatrix:ConfusionMatrix, tomorrow_date, monitored_uid, contingency_uid, percent_of_rating):
         total_hours = ConfusionMatrix.TP + ConfusionMatrix.FP + ConfusionMatrix.FN
         if not total_hours == 0:
             false_positive = ConfusionMatrix.FP * ConfusionMatrix.FP / total_hours / total_hours
             false_negative = ConfusionMatrix.FN * ConfusionMatrix.FN / total_hours / total_hours
             True_positive = ConfusionMatrix.TP * ConfusionMatrix.TP / total_hours / total_hours
-            self.collection.append((false_positive, false_negative, ConfusionMatrix.TP, ConfusionMatrix.FP, ConfusionMatrix.FN, from_date, monitored_uid, contingency_uid, total_hours))
+            self.collection.append((false_positive, false_negative, ConfusionMatrix.TP, ConfusionMatrix.FP, ConfusionMatrix.FN, tomorrow_date, monitored_uid, contingency_uid, total_hours, percent_of_rating))
 
             return True
         return False
@@ -160,14 +164,15 @@ for as_of in tqdm(as_ofs_actual):
     early_date_for_MUSE_query = (as_of.as_of - datetime.timedelta(days=Num_of_days_to_look_back+1)).date().strftime('%Y-%m-%d')
     from_date = as_of.as_of.date().strftime('%Y-%m-%d')
     to_date = datetime.datetime.now().strftime('%Y-%m-%d')
-    tomorrow_date = (as_of.as_of + datetime.timedelta(days=1)).date()
+    tomorrow_date = (as_of.as_of + datetime.timedelta(days=1)).date().strftime('%Y-%m-%d')
     if (datetime.datetime.now() - datetime.timedelta(days=1)).date() <= as_of.as_of.date():
         continue
-    top_contingencies = find_top_congestions(contents_actual[f'{from_date}T04:00:00-05:00'])
+    
+    top_contingencies = find_top_congestions(contents_actual[f'{tomorrow_date}T04:00:00-05:00'])
 
-    collected_results[from_date] = collectedConfusionMatrix()
+    collected_results[tomorrow_date] = collectedConfusionMatrix()
 
-    print(f'working on {from_date}')
+    print(f'working on {tomorrow_date}')
     for monitored_uid, contingency_uid  in top_contingencies.index:
 
         # if not 'SSHKCRI8' == contingency_uid:
@@ -188,7 +193,7 @@ for as_of in tqdm(as_ofs_actual):
         else:
             MUSE_constraint_flow = MUSE_DATA[constraint_uid]
             cnt_not_downloaded += 1
-        MUSE_constraint_flow_tomorrow = MUSE_constraint_flow[MUSE_constraint_flow['time_stamp'].apply(lambda x:x[:10]) == tomorrow_date.strftime('%Y-%m-%d')].sort_values('time_stamp').reset_index(drop=True)
+        MUSE_constraint_flow_tomorrow = MUSE_constraint_flow[MUSE_constraint_flow['time_stamp'].apply(lambda x:x[:10]) == tomorrow_date].sort_values('time_stamp').reset_index(drop=True)
 
         # MUSE_constraint_flow['time_stamp'] = pd.to_datetime(MUSE_constraint_flow['time_stamp'],utc=True).dt.tz_convert('US/Central')
 
@@ -201,10 +206,10 @@ for as_of in tqdm(as_ofs_actual):
             print(f'Error 238476238476: no data for {constraint_uid}')
             print(url)
             continue
-        content_orig = content
-        FORECAST_constraint_flow = pd.read_csv(content_orig)
+        # content_orig = content
+        FORECAST_constraint_flow = pd.read_csv(content)
         FORECAST_constraint_flow['timestamp'] = pd.to_datetime(FORECAST_constraint_flow['timestamp'].apply(lambda x:x[:-6])).apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S'))
-        FORECAST_constraint_flow_tomorrow = FORECAST_constraint_flow[FORECAST_constraint_flow['timestamp'].apply(lambda x:x[:10]) == tomorrow_date.strftime('%Y-%m-%d')][['timestamp','rating','constraint_flow']].sort_values('timestamp').reset_index(drop=True)
+        FORECAST_constraint_flow_tomorrow = FORECAST_constraint_flow[FORECAST_constraint_flow['timestamp'].apply(lambda x:x[:10]) == tomorrow_date][['timestamp','rating','constraint_flow']].sort_values('timestamp').reset_index(drop=True)
 
         if not len(FORECAST_constraint_flow_tomorrow) == 24  or not len(MUSE_constraint_flow_tomorrow) == 24:
             if len(FORECAST_constraint_flow_tomorrow) == 0 or len(MUSE_constraint_flow_tomorrow) == 0:
@@ -217,97 +222,72 @@ for as_of in tqdm(as_ofs_actual):
         conf_matrix.TP = ((MUSE_constraint_flow_tomorrow['constraint_flow'] >= used_rating) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating)).sum()
         conf_matrix.FN = ((MUSE_constraint_flow_tomorrow['constraint_flow'] >= used_rating) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] <= used_rating)).sum()
         conf_matrix.FP = ((MUSE_constraint_flow_tomorrow['constraint_flow'] <= used_rating) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating)).sum()
-        ans = collected_results[from_date].calc_collected_confusion_metrics(conf_matrix, from_date, monitored_uid, contingency_uid)
+        ans = collected_results[tomorrow_date].calc_collected_confusion_metrics(conf_matrix, tomorrow_date, monitored_uid, contingency_uid, percent_of_rating)
         if ans is False:
-            RT_bindings_NOT_caught_by_MUSE_and_FORECAST.append((from_date, monitored_uid, contingency_uid))
+            RT_bindings_NOT_caught_by_MUSE_and_FORECAST.append((tomorrow_date, monitored_uid, contingency_uid))
+            print(18)
+        else:
+            print(ans)
+            print(18)
 
-# print(f'MUSE: {line_MUSE.constraint_flow}, FORECAST: {line_FORECAST.constraint_flow}, used_rating: {used_rating}')
-        # for line_MUSE, line_FORECAST in zip(MUSE_constraint_flow_tomorrow.iterrows(), FORECAST_constraint_flow_tomorrow.iterrows()):
-        #     # find a line in the forecast that matches the time stamp of line_MUSE
-        #     # for ind,line_FORECAST in FORECAST_constraint_flow_tomorrow.iterrows():
-        #     # if line_FORECAST.timestamp == line_MUSE.time_stamp:
-        #     # being here means that we found the forecast for the same day as the actual
-        #     rating = line_FORECAST[1].rating
-        #     used_rating = percent_of_rating * rating
-        #     if line_MUSE[1].constraint_flow > used_rating:
-        #         #this is a binding constraint
-        #         if line_FORECAST[1].constraint_flow > used_rating:
-        #             #this is a forecasted binding constraint
-        #             conf_matrix.TP += 1
-        #         else:
-        #             #this is a non forecasted binding constraint
-        #             conf_matrix.FN += 1
-        #     else:
-        #         #this is not a binding constraint
-        #         if line_FORECAST[1].constraint_flow > used_rating:
-        #             #this is a forecasted binding constraint
-        #             conf_matrix.FP += 1
-        
-        # if not TP == conf_matrix.TP or not FP == conf_matrix.FP or not FN == conf_matrix.FN:
-        #     print('error 29384792384')
-        #     Die
-        # ans = collected_results[from_date].calc_collected_confusion_metrics(conf_matrix, from_date, monitored_uid, contingency_uid)
-        # if ans is False:
-        #     RT_bindings_NOT_caught_by_MUSE_and_FORECAST.append((from_date, monitored_uid, contingency_uid))
-               
-
-
-
-        # for ind,line_MUSE in MUSE_constraint_flow_tomorrow.iterrows():
-        #     if not line_MUSE.time_stamp[:10] == tomorrow_date.strftime('%Y-%m-%d-%H-%M')[:10]:
-        #         continue
-        #     # find a line in the forecast that matches the time stamp of line_MUSE
-        #     for ind,line_FORECAST in FORECAST_constraint_flow_tomorrow.iterrows():
-        #         if line_FORECAST.timestamp == line_MUSE.time_stamp:
-        #             # being here means that we found the forecast for the same day as the actual
-        #             rating = line_FORECAST.rating
-        #             used_rating = percent_of_rating * rating
-        #             print(f'MUSE: {line_MUSE.constraint_flow}, FORECAST: {line_FORECAST.constraint_flow}, used_rating: {used_rating}')
-        #             if line_MUSE.constraint_flow > used_rating:
-        #                 #this is a binding constraint
-        #                 if line_FORECAST.constraint_flow > used_rating:
-        #                     #this is a forecasted binding constraint
-        #                     conf_matrix.TP += 1
-        #                 else:
-        #                     #this is a non forecasted binding constraint
-        #                     conf_matrix.FN += 1
-        #             else:
-        #                 #this is not a binding constraint
-        #                 if line_FORECAST.constraint_flow > used_rating:
-        #                     #this is a forecasted binding constraint
-        #                     conf_matrix.FP += 1
-        # ans = collected_results[from_date].calc_collected_confusion_metrics(conf_matrix, from_date, monitored_uid, contingency_uid)
-        # if ans is False:
-        #     RT_bindings_NOT_caught_by_MUSE_and_FORECAST.append((from_date, monitored_uid, contingency_uid))
-                            
 
 # The code below aggregates alf the results for the entire week.
 daily_confusion_FP = []
 daily_confusion_FN = []
 daily_confusion_TP = []
 num_of_points = []
+original_points = []  # Initialize variables to store original points
+point_ind = []  # Initialize variables to store the index of the merged point
+# original_pnts = []
+radius_for_points = [] 
+titles = ['index', 'FP_for_chart', 'FN_for_chart', 'TP', 'FP', 'FN', 'Date', 'Monitored_uid', 'Contingency_uid', 'Num_points', 'Rating']
+weekly_info = pd.DataFrame(columns=titles)
+
+# At this point we have to save. Any graphing will be done based on the saved data to the DataFrame
+# options to give the user: 
+# 1. Choose a range of dates
+# 2. For some dates there are well less than 10 points. Check why
+# 3. Choose a specific monitored_uid and contingency_uid
+# 4. Choose a specific rating
+# 5. Choose to show only data with RT shadow price > Threshold
+# 6. Choose to show only data with number of hours less (or more) than a threshold
+
+i=0
 for date_of_forecast in collected_results:
-    for false_positive, false_negative, TP, FP, FN, from_date, monitored_uid, contingency_uid, num_points in collected_results[date_of_forecast].collection:
+    for false_positive, false_negative, TP, FP, FN, tomorrow_date, monitored_uid, contingency_uid, num_points, rating in collected_results[date_of_forecast].collection:
         daily_confusion_FP.append(false_positive)
         daily_confusion_FN.append(false_negative)
         daily_confusion_TP.append(false_negative)
+        radius_for_points.append(0)
         num_of_points.append(num_points)
+        original_points.append([(false_positive, false_negative)])  # Initialize original points for each merged point
+        point_ind.append([i])
+        
+        new_row = {'index':i, 'FP_for_chart': false_positive, 'FN_for_chart': false_negative, 'TP': TP, 'FP': FP, 'FN': FN, 'Date': tomorrow_date, 'Monitored_uid': monitored_uid, 'Contingency_uid': contingency_uid, 'Num_points': num_points, 'Rating': rating}
+        weekly_info.loc[len(weekly_info)] = new_row
+        i += 1
+        
 
-
-def on_click(event, daily_confusion_FP=daily_confusion_FP, daily_confusion_FN=daily_confusion_FN, num_of_points=num_of_points): 
-    radius_for_points=0.1
-    if event.button == 1: 
-        # Left mouse button 
+def on_click(event, daily_confusion_FP=daily_confusion_FP, daily_confusion_FN=daily_confusion_FN, num_of_points=num_of_points, radius_for_points=radius_for_points): 
+    # radius_for_points=0.05
+    if event.button == 1:         # Left mouse button 
         for i in range(len(daily_confusion_FP)): 
-            circle = Circle((daily_confusion_FP[i], daily_confusion_FN[i]), radius=radius_for_points) 
-            if circle.contains_point((event.xdata, event.ydata)): 
+            circle = Circle((daily_confusion_FP[i], daily_confusion_FN[i]), radius=radius_for_points[i]) 
+            if circle.contains_point((event.xdata, event.ydata)):
                 print(f"Point {i+1}:") 
                 print(f" False Positive: {daily_confusion_FP[i]}") 
                 print(f" False Negative: {daily_confusion_FN[i]}") 
-                print(f" Number of Points: {num_of_points[i]}") 
+                # print(f" Number of Points: {num_of_points[i]}") 
+                for original_point in original_points[i]: 
+                    print(f" False Positive: {original_point[0]}, False Negative: {original_point[1]}") 
+                # for j in point_ind[i]:    
+                #     print(weekly_info.loc[j])
+                print(weekly_info.query('index in @point_ind[@i]'))
                 break
 
-def create_plot(daily_confusion_FP, daily_confusion_FN, num_of_points):
+Points_unified = []
+# def create_plot(daily_confusion_FP, daily_confusion_FN, num_of_points):
+def create_plot():
 
 
     # the following creates a histogram of daily_confusion_TP
@@ -325,15 +305,33 @@ def create_plot(daily_confusion_FP, daily_confusion_FN, num_of_points):
     
     # some of the points are very close to each other, so we need to unify them into one big point if they are close to each other than 10:
     for i in range(len(daily_confusion_FP)):
+        if i in Points_unified:
+            continue
         for j in range(len(daily_confusion_FP)-1,i,-1):
-            if abs(daily_confusion_FP[i] - daily_confusion_FP[j]) < .1 and abs(daily_confusion_FN[i] - daily_confusion_FN[j]) < .1:
+            if j in Points_unified:
+                continue
+            if abs(daily_confusion_FP[i] - daily_confusion_FP[j]) < .05 and abs(daily_confusion_FN[i] - daily_confusion_FN[j]) < .05:
+                original_points[i].append((daily_confusion_FP[j], daily_confusion_FN[j])) # Add original point to the corresponding merged point 
+                point_ind[i].append(j)
                 daily_confusion_FP[i] = (daily_confusion_FP[i]*num_of_points[i] + daily_confusion_FP[j]*num_of_points[j]) / (num_of_points[i] + num_of_points[j])
                 daily_confusion_FN[i] = (daily_confusion_FN[i]*num_of_points[i] + daily_confusion_FN[j]*num_of_points[j]) / (num_of_points[i] + num_of_points[j])
                 num_of_points[i] = num_of_points[i] + num_of_points[j]
-                daily_confusion_FP.pop(j)
-                daily_confusion_FN.pop(j)
-                num_of_points.pop(j)
+                Points_unified.append(j)
+                
+                # daily_confusion_FP.pop(j)
+                # daily_confusion_FN.pop(j)
+                # num_of_points.pop(j)
+                # original_points.pop(j) # Remove original point from the dictionary      #ZZZ
     
+    for i in range(len(daily_confusion_FP),-1,-1):
+        if i in Points_unified:
+            daily_confusion_FP.pop(i)
+            daily_confusion_FN.pop(i)
+            num_of_points.pop(i)
+            original_points.pop(i)
+            point_ind.pop(i)
+            radius_for_points.pop(i)
+
     # create contours
     ax = plt.gca()
     ax.set_aspect('equal', adjustable='box')  # Set aspect ratio to be equal
@@ -347,11 +345,12 @@ def create_plot(daily_confusion_FP, daily_confusion_FN, num_of_points):
 
     # write the number of points in each circle
     text_size = np.interp(num_of_points, (min(num_of_points), max(num_of_points)), (10, 30))
+    radius_range = np.interp(num_of_points, (min(num_of_points), max(num_of_points)), (.03, .07))
     for i in range(len(daily_confusion_FP)):
+        radius_for_points[i] = radius_range[i]
         ax.text(daily_confusion_FP[i], daily_confusion_FN[i], f'{(100*num_of_points[i] / sum(num_of_points)):.0f}', fontsize=text_size[i], ha='center', va='center')
         
         # add a circle for each point
-        radius_for_points = np.interp(num_of_points, (min(num_of_points), max(num_of_points)), (.03, .07))
         circle = Circle((daily_confusion_FP[i], daily_confusion_FN[i]), radius=radius_for_points[i], fill=False, color='black')
         ax.add_patch(circle)
 
@@ -365,13 +364,14 @@ def create_plot(daily_confusion_FP, daily_confusion_FN, num_of_points):
 
     plt.show()
 
-    return daily_confusion_FP, daily_confusion_FN
+    return daily_confusion_FP, daily_confusion_FN, radius_for_points
 
-daily_confusion_FP, daily_confusion_FN = create_plot(daily_confusion_FP, daily_confusion_FN, num_of_points)
+# daily_confusion_FP, daily_confusion_FN, radius_for_points = create_plot(daily_confusion_FP, daily_confusion_FN, num_of_points)
+daily_confusion_FP, daily_confusion_FN, radius_for_points = create_plot()
 
 
 
-
+weekly_info
 print(f'cnt_NO = {cnt_downloaded}, cnt_YES = {cnt_not_downloaded}')
 print(18)
     
