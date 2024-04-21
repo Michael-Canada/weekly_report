@@ -1,11 +1,17 @@
 # environment:
 # placebo_api_local
 
+import sys
+sys.path.append('/Users/michael.simantov/Documents/mu-placebo-api')
+sys.path.append('/Users/michael.simantov/Documents/mu-placebo-api/placebo_api')
+sys.path.append('/Users/michael.simantov/Documents/mu-placebo-api/placebo_api/utils')
 
 from typing import NamedTuple, Dict
-from placebo_api.utils import api_utils, date_utils
+# from placebo_api.utils import api_utils, date_utils
+import api_utils, date_utils
 from placebo.utils import snowflake_utils
-from placebo_api.utils.date_utils import LocalizedDateTime
+# from placebo_api.utils.date_utils import LocalizedDateTime
+from date_utils import LocalizedDateTime
 import pandas as pd
 import datetime
 from tqdm import tqdm
@@ -17,10 +23,13 @@ from matplotlib.patches import Circle
 import numpy as np
 import os 
 
+
 # list of hyperparameters
-Num_congestions_per_day = 5
-Num_of_days_to_look_back = 5
-percent_of_rating = 1
+Num_congestions_per_day = 30  #30
+Num_of_days_to_look_back = 25  #25
+percent_of_ratings = [0.99, 0.95, 0.9, 0.85, 0.8]
+# percent_of_ratings = [0.99]
+print(18)
 
 class ConfusionMatrix:
     def __init__(self):
@@ -29,21 +38,27 @@ class ConfusionMatrix:
         self.FN=0
         self.TN=-1
         
-class collectedConfusionMatrix():
-    def __init__(self):
-        self.collection = []
+counter = 0
+def calc_collected_confusion_metrics(ConfusionMatrix:ConfusionMatrix, tomorrow_date, monitored_uid, contingency_uid, percent_of_rating, orig_rating, observed_RT_shadow_price):
 
-    def calc_collected_confusion_metrics(self, ConfusionMatrix:ConfusionMatrix, tomorrow_date, monitored_uid, contingency_uid, percent_of_rating):
-        total_hours = ConfusionMatrix.TP + ConfusionMatrix.FP + ConfusionMatrix.FN
-        if not total_hours == 0:
-            false_positive = ConfusionMatrix.FP * ConfusionMatrix.FP / total_hours / total_hours
-            false_negative = ConfusionMatrix.FN * ConfusionMatrix.FN / total_hours / total_hours
-            True_positive = ConfusionMatrix.TP * ConfusionMatrix.TP / total_hours / total_hours
-            self.collection.append((false_positive, false_negative, ConfusionMatrix.TP, ConfusionMatrix.FP, ConfusionMatrix.FN, tomorrow_date, monitored_uid, contingency_uid, total_hours, percent_of_rating))
-
-            return True
-        return False
+    #the following is a counter that grows by 1 for each new entry:
+    global counter
+    counter += 1
+    
+    total_hours = ConfusionMatrix.TP + ConfusionMatrix.FP + ConfusionMatrix.FN
+    total_hours_squared = ConfusionMatrix.TP**2 + ConfusionMatrix.FP**2 + ConfusionMatrix.FN**2
+    if not total_hours_squared == 0:
+        # false_positive = ConfusionMatrix.FP * ConfusionMatrix.FP / total_hours_squared
+        # false_negative = ConfusionMatrix.FN * ConfusionMatrix.FN / total_hours_squared
+        # True_positive = ConfusionMatrix.TP * ConfusionMatrix.TP / total_hours_squared 
+        false_positive = ConfusionMatrix.FP / total_hours
+        false_negative = ConfusionMatrix.FN / total_hours
+        True_positive = ConfusionMatrix.TP / total_hours
         
+        return True, ((counter, false_positive, false_negative, ConfusionMatrix.TP, ConfusionMatrix.FP, ConfusionMatrix.FN, tomorrow_date, monitored_uid, contingency_uid, total_hours, percent_of_rating, orig_rating, observed_RT_shadow_price))
+
+    return False, None
+    
 def process_actual(content_actual):
     
     df_bc_actual = pd.read_csv(content_actual)
@@ -148,7 +163,7 @@ def _get_dataframe(muse_path, method=requests.get):
 # the following function finds the top 10 congestions by aggregating over one day the shadow_price on all of the monitored_uid. It returns a dataframe with 3 columns: monitored_uid, contingency_uid, and the sum of the shadow_price for that monitored_uid.
 def find_top_congestions(df_actual_one, num_of_congestions=Num_congestions_per_day):
     top_congestions = df_actual_one.groupby(['monitored_uid','contingency_uid']).agg({'shadow_price':'sum'}).sort_values('shadow_price', ascending=False).head(num_of_congestions)
-
+    top_congestions = top_congestions[top_congestions['shadow_price'] > 50]
     return top_congestions
 
 URL_ROOT = 'https://api1.marginalunit.com/muse/api'
@@ -160,20 +175,29 @@ cnt_downloaded = 0
 cnt_not_downloaded = 0
 RT_bindings_NOT_caught_by_MUSE_and_FORECAST = []
 collected_results = {}
+RT_bindings_NOT_caught_by_MUSE_and_FORECAST = {}
+
 for as_of in tqdm(as_ofs_actual):
     early_date_for_MUSE_query = (as_of.as_of - datetime.timedelta(days=Num_of_days_to_look_back+1)).date().strftime('%Y-%m-%d')
     from_date = as_of.as_of.date().strftime('%Y-%m-%d')
     to_date = datetime.datetime.now().strftime('%Y-%m-%d')
     tomorrow_date = (as_of.as_of + datetime.timedelta(days=1)).date().strftime('%Y-%m-%d')
+    # if not tomorrow_date == '2024-04-17':
+    #     continue
+
     if (datetime.datetime.now() - datetime.timedelta(days=1)).date() <= as_of.as_of.date():
         continue
     
     top_contingencies = find_top_congestions(contents_actual[f'{tomorrow_date}T04:00:00-05:00'])
 
-    collected_results[tomorrow_date] = collectedConfusionMatrix()
+    # collected_results[tomorrow_date] = collectedConfusionMatrix()
+    collected_results[tomorrow_date] = []
+    RT_bindings_NOT_caught_by_MUSE_and_FORECAST[tomorrow_date] = []
 
     print(f'working on {tomorrow_date}')
     for monitored_uid, contingency_uid  in top_contingencies.index:
+        # if not (contingency_uid == 'XNED89' and tomorrow_date == '2024-04-12'):
+        #     continue
 
         # if not 'SSHKCRI8' == contingency_uid:
         #     continue
@@ -199,7 +223,6 @@ for as_of in tqdm(as_ofs_actual):
 
         # find historical forecast
         # url = f'https://api1.marginalunit.com/pr-forecast/ercot/constraint/lookahead_timeseries?monitored_uid={monitored_uid}&contingency_uid={contingency_uid}&stream_uid=load_100_wind_100_sol_100_ng_100_iir&from_datetime={from_date}'  #works but not what I need. This is foreacast for today's hours, which was created today in the morning
-        # url = f'https://api1.marginalunit.com/pr-forecast/ercot/constraint?as_of={from_date}&as_of_match=nearest_before&stream_uid=load_100_wind_100_sol_100_ng_100_iir&monitored_uid=BURNS_RIOHONDO_1,RIOHONDO,138.0,MV_BURNS,138.0&contingency_uid=XNED89'  #forecast future days
         url = f'https://api1.marginalunit.com/pr-forecast/{run}/constraint?as_of={from_date}T04:00:00-05:00&as_of_match=nearest_before&stream_uid=load_100_wind_100_sol_100_ng_100_iir&monitored_uid={monitored_uid}&contingency_uid={contingency_uid}'  #forecast future days
         content = _get_dfm(url)
         if content is None:
@@ -213,34 +236,96 @@ for as_of in tqdm(as_ofs_actual):
 
         if not len(FORECAST_constraint_flow_tomorrow) == 24  or not len(MUSE_constraint_flow_tomorrow) == 24:
             if len(FORECAST_constraint_flow_tomorrow) == 0 or len(MUSE_constraint_flow_tomorrow) == 0:
-                continue # no data for this day
+                continue # no data for this day 
             print('Error: . Expected 24 hours of data.   932849287394872')
             DIE
         
-        # Compare prices and ratings 
-        used_rating = percent_of_rating * FORECAST_constraint_flow_tomorrow['rating']
-        conf_matrix.TP = ((MUSE_constraint_flow_tomorrow['constraint_flow'] >= used_rating) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating)).sum()
-        conf_matrix.FN = ((MUSE_constraint_flow_tomorrow['constraint_flow'] >= used_rating) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] <= used_rating)).sum()
-        conf_matrix.FP = ((MUSE_constraint_flow_tomorrow['constraint_flow'] <= used_rating) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating)).sum()
-        ans = collected_results[tomorrow_date].calc_collected_confusion_metrics(conf_matrix, tomorrow_date, monitored_uid, contingency_uid, percent_of_rating)
-        if ans is False:
-            RT_bindings_NOT_caught_by_MUSE_and_FORECAST.append((tomorrow_date, monitored_uid, contingency_uid))
-            print(18)
-        else:
-            print(ans)
-            print(18)
+        ############ Create a DataFrame for RT shadow prices with all hours of the day
+        RT_data_for_this_date = contents_actual[f'{tomorrow_date}T04:00:00-05:00'].query('monitored_uid == @monitored_uid and contingency_uid == @contingency_uid').sort_values('period').reset_index(drop=True)
+
+        # Convert 'period' to datetime
+        RT_data_for_this_date['period'] = pd.to_datetime(RT_data_for_this_date['period'])
+        # RT_data_for_this_date['period'] = RT_data_for_this_date['period'].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+        # Get the date
+        date = RT_data_for_this_date['period'].dt.date[0]
+
+        # Set start_date and end_date to cover the full day
+        start_date = pd.Timestamp(date)
+        end_date = start_date + pd.Timedelta(days=1, hours=-1)
+
+        # Generate all hourly timestamps between start_date and end_date
+        all_hours = pd.date_range(start_date, end_date, freq='H')
+
+        # Create a DataFrame from all_hours
+        all_hours_df = pd.DataFrame(all_hours, columns=['period'])
+
+        # Convert 'period' in RT_data_for_this_date to datetime64[ns]
+        # RT_data_for_this_date['period'] = pd.to_datetime(RT_data_for_this_date['period'])
+        RT_data_for_this_date['period'] = RT_data_for_this_date['period'].dt.strftime('%Y-%m-%d %H:%M:%S')
+        RT_data_for_this_date['period'] = pd.to_datetime(RT_data_for_this_date['period'])
+
+        # Merge the new DataFrame with the original one
+        RT_data_for_this_date = pd.merge(all_hours_df, RT_data_for_this_date, on='period', how='left').sort_values('period')
+        RT_data_for_this_date[RT_data_for_this_date['shadow_price'].isnull()] = 0
+        ############
 
 
+
+        for percent_of_rating in percent_of_ratings:
+            
+            # if now rating is given then skip:
+            if (all(FORECAST_constraint_flow_tomorrow['rating'] <= 10) is False) and (all(FORECAST_constraint_flow_tomorrow['rating'] > 10) is False):   #this is not a number!
+                break
+            
+            # if no constraint flow is given then skip
+            if (all(FORECAST_constraint_flow_tomorrow['constraint_flow'] <= 10) is False) and (all(FORECAST_constraint_flow_tomorrow['constraint_flow'] > 10) is False):   #this is not a number!
+                break
+
+            # Compare prices and ratings 
+            used_rating = percent_of_rating * FORECAST_constraint_flow_tomorrow['rating']
+            # conf_matrix.TP = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] >= used_rating)  ) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating)).sum()
+            conf_matrix.FN = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] >= used_rating)  ) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] <= used_rating)).sum()
+            # conf_matrix.FP = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] <= used_rating)  ) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating)).sum()
+            conf_matrix.TP = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] >= used_rating)  |  (RT_data_for_this_date['shadow_price'] > 0)) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating)).sum()
+            # conf_matrix.FN = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] >= used_rating)  |  (RT_data_for_this_date['shadow_price'] > 0)) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] <= used_rating)).sum()
+            conf_matrix.FP = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] <= used_rating)  & (RT_data_for_this_date['shadow_price'] == 0)) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating)).sum()
+
+            # find the shadow price based on top_contingencies[(monitored_uid, contingency_uid)]:
+            obsered_RT_shadow_price = top_contingencies.loc[(monitored_uid, contingency_uid)].shadow_price
+            if conf_matrix.FN + conf_matrix.TP + conf_matrix.FP == 0:
+                RT_bindings_NOT_caught_by_MUSE_and_FORECAST[tomorrow_date].append((tomorrow_date, monitored_uid, contingency_uid, percent_of_rating, percent_of_rating, obsered_RT_shadow_price))
+                conf_matrix.FN += ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] <= used_rating) & (RT_data_for_this_date['shadow_price'] > 0)  ) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] <= used_rating)).sum()                
+            ans, constraint_data = calc_collected_confusion_metrics(conf_matrix, tomorrow_date, monitored_uid, contingency_uid, percent_of_rating, percent_of_rating, obsered_RT_shadow_price)
+            collected_results[tomorrow_date].append(constraint_data)
+            if constraint_data is None:
+                print(18)
+                ans, constraint_data = calc_collected_confusion_metrics(conf_matrix, tomorrow_date, monitored_uid, contingency_uid, percent_of_rating, percent_of_rating, obsered_RT_shadow_price)
+
+print(19)
+data_to_save = {'collected_results': collected_results, 'RT_bindings_NOT_caught_by_MUSE_and_FORECAST': RT_bindings_NOT_caught_by_MUSE_and_FORECAST, 'percent_of_ratings': percent_of_ratings}
+today_date = datetime.datetime.now().strftime('%Y-%m-%d')
+with open(f'weekly_report_as_of_{today_date}.pkl', 'wb') as f:
+    pickle.dump(data_to_save, f)
+
+# zzz
+today_date = datetime.datetime.now().strftime('%Y-%m-%d')
+data_to_save = pickle.load(open(f'weekly_report_as_of_{today_date}.pkl', 'rb'))
+collected_results = data_to_save['collected_results']
+RT_bindings_NOT_caught_by_MUSE_and_FORECAST = data_to_save['RT_bindings_NOT_caught_by_MUSE_and_FORECAST']
+
+
+print(20)
 # The code below aggregates alf the results for the entire week.
 daily_confusion_FP = []
 daily_confusion_FN = []
 daily_confusion_TP = []
 num_of_points = []
-original_points = []  # Initialize variables to store original points
+# original_points = []  # Initialize variables to store original points
 point_ind = []  # Initialize variables to store the index of the merged point
 # original_pnts = []
 radius_for_points = [] 
-titles = ['index', 'FP_for_chart', 'FN_for_chart', 'TP', 'FP', 'FN', 'Date', 'Monitored_uid', 'Contingency_uid', 'Num_points', 'Rating']
+titles = ['index', 'FP_for_chart', 'FN_for_chart', 'TP', 'FP', 'FN', 'Date', 'Monitored_uid', 'Contingency_uid', 'Num Hours', 'Rating', 'observed_RT_shadow_price']
 weekly_info = pd.DataFrame(columns=titles)
 
 # At this point we have to save. Any graphing will be done based on the saved data to the DataFrame
@@ -254,85 +339,108 @@ weekly_info = pd.DataFrame(columns=titles)
 
 i=0
 for date_of_forecast in collected_results:
-    for false_positive, false_negative, TP, FP, FN, tomorrow_date, monitored_uid, contingency_uid, num_points, rating in collected_results[date_of_forecast].collection:
+    for counter, false_positive, false_negative, TP, FP, FN, tomorrow_date, monitored_uid, contingency_uid, num_points, rating, orig_rating, observed_RT_shadow_price in collected_results[date_of_forecast]:
         daily_confusion_FP.append(false_positive)
         daily_confusion_FN.append(false_negative)
-        daily_confusion_TP.append(false_negative)
+        daily_confusion_TP.append(num_points - false_negative - false_positive)
         radius_for_points.append(0)
         num_of_points.append(num_points)
-        original_points.append([(false_positive, false_negative)])  # Initialize original points for each merged point
+        # original_points.append([(false_positive, false_negative)])  # Initialize original points for each merged point
         point_ind.append([i])
         
-        new_row = {'index':i, 'FP_for_chart': false_positive, 'FN_for_chart': false_negative, 'TP': TP, 'FP': FP, 'FN': FN, 'Date': tomorrow_date, 'Monitored_uid': monitored_uid, 'Contingency_uid': contingency_uid, 'Num_points': num_points, 'Rating': rating}
+        new_row = {'index':i, 'FP_for_chart': false_positive, 'FN_for_chart': false_negative, 'TP': TP, 'FP': FP, 'FN': FN, 'Date': tomorrow_date, 'Monitored_uid': monitored_uid, 'Contingency_uid': contingency_uid, 'Num Hours': num_points, 'Rating': rating, 'orig_rating': rating, 'observed_RT_shadow_price':observed_RT_shadow_price}
         weekly_info.loc[len(weekly_info)] = new_row
         i += 1
-        
+
 
 def on_click(event, daily_confusion_FP=daily_confusion_FP, daily_confusion_FN=daily_confusion_FN, num_of_points=num_of_points, radius_for_points=radius_for_points): 
     # radius_for_points=0.05
     if event.button == 1:         # Left mouse button 
         for i in range(len(daily_confusion_FP)): 
-            circle = Circle((daily_confusion_FP[i], daily_confusion_FN[i]), radius=radius_for_points[i]) 
+            circle = Circle((np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i])), radius=radius_for_points[i]) 
             if circle.contains_point((event.xdata, event.ydata)):
-                print(f"Point {i+1}:") 
+                print(' ')
+                num_of_days = len(weekly_info.query('index in @point_ind[@i]'))
+                print(f" Number of days: {num_of_days}")
+                print(f" Total (and average) number of hours: {num_of_points[i]}, ({num_of_points[i] / num_of_days})")
+                total_RT_shadow_price = weekly_info.query('index in @point_ind[@i]').observed_RT_shadow_price.sum()
+                print(f" Total (and average) RT shadow price: {total_RT_shadow_price} ({total_RT_shadow_price / num_of_days})")
                 print(f" False Positive: {daily_confusion_FP[i]}") 
-                print(f" False Negative: {daily_confusion_FN[i]}") 
-                # print(f" Number of Points: {num_of_points[i]}") 
-                for original_point in original_points[i]: 
-                    print(f" False Positive: {original_point[0]}, False Negative: {original_point[1]}") 
-                # for j in point_ind[i]:    
-                #     print(weekly_info.loc[j])
+                print(f" False Negative: {daily_confusion_FN[i]}")
+
                 print(weekly_info.query('index in @point_ind[@i]'))
+                print(' ')
                 break
 
+def weight_on_number_of_hours_in_the_blob(i):
+    return (100*num_of_points[i] / sum(num_of_points))
+def weight_on_average_num_of_active_hours_per_day(i):
+    total = 0
+    for j in range(len(daily_confusion_FP)):
+        num_of_days = len(weekly_info.query('index in @point_ind[@j]'))
+        total += num_of_points[j] / num_of_days
+    num_of_days = len(weekly_info.query('index in @point_ind[@i]'))
+    return (100 * num_of_points[i] / num_of_days / total)
+def weight_on_num_of_days_in_the_blob(i):
+    num_of_days = len(weekly_info.query('index in @point_ind[@i]'))
+    total_days = len(weekly_info)
+    return(100 * num_of_days / total_days)
+def weight_on_total_RT_shadow_price(i):
+    total_shadow_price = weekly_info.observed_RT_shadow_price.sum()
+    RT_shadow_price_of_this_blob = weekly_info.query('index in @point_ind[@i]').observed_RT_shadow_price.sum()
+    return (100*RT_shadow_price_of_this_blob / total_shadow_price)
+def weight_on_average_RT_shadow_prices_per_day(i):
+    total = 0
+    for j in range(len(daily_confusion_FP)):
+        RT_shadow_price_of_this_blob = weekly_info.query('index in @point_ind[@j]').observed_RT_shadow_price.sum()
+        num_of_days = len(weekly_info.query('index in @point_ind[@j]'))
+        total += RT_shadow_price_of_this_blob / num_of_days
+    RT_shadow_price_of_this_blob = weekly_info.query('index in @point_ind[@i]').observed_RT_shadow_price.sum()
+    num_of_days = len(weekly_info.query('index in @point_ind[@i]'))
+    return (100 * RT_shadow_price_of_this_blob / total / num_of_days)
+
 Points_unified = []
-# def create_plot(daily_confusion_FP, daily_confusion_FN, num_of_points):
-def create_plot():
+def create_plot(Radius_to_unify_points = 0.05, chosen_function = weight_on_average_num_of_active_hours_per_day):
 
+    if False:
+        # Create a histogram of daily_confusion_TP
+        bins = np.linspace(0, 1, 10)  # Adjust the number of bins as needed
+        hist, _ = np.histogram(daily_confusion_TP, bins=bins, weights=num_of_points)
 
-    # the following creates a histogram of daily_confusion_TP
-    # Compute histogram with quantization
-    bins = np.linspace(0, 1, 10)  # Adjust the number of bins as needed
-    hist, _ = np.histogram(daily_confusion_TP, bins=bins, weights=num_of_points)
+        # Plot histogram
+        plt.bar(bins[:-1], hist/sum(num_of_points), width=np.diff(bins), align='edge')
+        plt.xlabel('True Positive')
+        plt.ylabel('Percent')
+        plt.title(f'Histogram of True Positive, rating = {percent_of_rating}')
 
-    # Plot histogram
-    plt.bar(bins[:-1], hist/sum(num_of_points), width=np.diff(bins), align='edge')
-    plt.xlabel('True Positive')
-    plt.ylabel('Percent')
-    plt.title(f'Histogram of True Positive, rating = {percent_of_rating}')
-
-    plt.figure()
+        plt.figure()
     
-    # some of the points are very close to each other, so we need to unify them into one big point if they are close to each other than 10:
+    # some of the points are very close to each other, so we need to unify them into one big point:
     for i in range(len(daily_confusion_FP)):
         if i in Points_unified:
             continue
         for j in range(len(daily_confusion_FP)-1,i,-1):
             if j in Points_unified:
                 continue
-            if abs(daily_confusion_FP[i] - daily_confusion_FP[j]) < .05 and abs(daily_confusion_FN[i] - daily_confusion_FN[j]) < .05:
-                original_points[i].append((daily_confusion_FP[j], daily_confusion_FN[j])) # Add original point to the corresponding merged point 
+            if abs(daily_confusion_FP[i] - daily_confusion_FP[j]) < Radius_to_unify_points and abs(daily_confusion_FN[i] - daily_confusion_FN[j]) < Radius_to_unify_points:
+                # original_points[i].append((daily_confusion_FP[j], daily_confusion_FN[j])) # Add original point to the corresponding merged point 
                 point_ind[i].append(j)
                 daily_confusion_FP[i] = (daily_confusion_FP[i]*num_of_points[i] + daily_confusion_FP[j]*num_of_points[j]) / (num_of_points[i] + num_of_points[j])
                 daily_confusion_FN[i] = (daily_confusion_FN[i]*num_of_points[i] + daily_confusion_FN[j]*num_of_points[j]) / (num_of_points[i] + num_of_points[j])
                 num_of_points[i] = num_of_points[i] + num_of_points[j]
                 Points_unified.append(j)
-                
-                # daily_confusion_FP.pop(j)
-                # daily_confusion_FN.pop(j)
-                # num_of_points.pop(j)
-                # original_points.pop(j) # Remove original point from the dictionary      #ZZZ
     
+    # Eliminate points that were unified
     for i in range(len(daily_confusion_FP),-1,-1):
         if i in Points_unified:
             daily_confusion_FP.pop(i)
             daily_confusion_FN.pop(i)
             num_of_points.pop(i)
-            original_points.pop(i)
+            # original_points.pop(i)
             point_ind.pop(i)
             radius_for_points.pop(i)
 
-    # create contours
+    # create contours for equal TP
     ax = plt.gca()
     ax.set_aspect('equal', adjustable='box')  # Set aspect ratio to be equal
     theta = np.linspace(0, 2*np.pi/4, 100)  # Define angles for the circular grid
@@ -343,23 +451,32 @@ def create_plot():
         ax.plot(x_circle, y_circle, color='red', linestyle='dashed', alpha=0.2, linewidth=0.7)
         ax.text(radius * np.cos(np.pi/4), radius * np.sin(np.pi/4), f'{100-100*radius**2:.0f}%', style='italic', color='red', fontsize=8, ha='center', va='center')
 
-    # write the number of points in each circle
-    text_size = np.interp(num_of_points, (min(num_of_points), max(num_of_points)), (10, 30))
-    radius_range = np.interp(num_of_points, (min(num_of_points), max(num_of_points)), (.03, .07))
+    values = []
+    # circle each blob using a radius that is proportional to the number of points in the blob
     for i in range(len(daily_confusion_FP)):
-        radius_for_points[i] = radius_range[i]
-        ax.text(daily_confusion_FP[i], daily_confusion_FN[i], f'{(100*num_of_points[i] / sum(num_of_points)):.0f}', fontsize=text_size[i], ha='center', va='center')
+        value = chosen_function(i)
+        values.append(value)
+    
+    # The number of points of each blob and the curcle around it are proportional to the number of points in the blob
+    text_size = np.interp(values, (min(values), max(values)), (10, 30))
+    radius_range = np.interp(values, (min(values), max(values)), (.03, .08))
+
+    for i in range(len(daily_confusion_FP)):
+        ax.text(np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i]), f'{values[i]:.0f}', fontsize=text_size[i], ha='center', va='center')
         
+    for i in range(len(daily_confusion_FP)):
         # add a circle for each point
-        circle = Circle((daily_confusion_FP[i], daily_confusion_FN[i]), radius=radius_for_points[i], fill=False, color='black')
+        radius_for_points[i] = radius_range[i]
+        circle = Circle((np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i])), radius=radius_for_points[i], fill=False, color='black')
         ax.add_patch(circle)
 
     plt.connect('button_press_event', on_click)
     plt.xlabel('False Positive')
     plt.ylabel('False Negative')
-    plt.title(f'False Positive vs False Negative, rating = {percent_of_rating} {to_date}')
+    plt.title(f'False Positive vs False Negative, {to_date}')
 
     # add grid to the image. The grid should be radial, and reflects the fact that the closer to the center, the better the results
+    # plt.xticks([xi/10 for xi in range(0,10,2)], [int(10*np.sqrt(xi/10))/10 for xi in range(0,10,2)])
     plt.grid(True)
 
     plt.show()
@@ -367,11 +484,10 @@ def create_plot():
     return daily_confusion_FP, daily_confusion_FN, radius_for_points
 
 # daily_confusion_FP, daily_confusion_FN, radius_for_points = create_plot(daily_confusion_FP, daily_confusion_FN, num_of_points)
-daily_confusion_FP, daily_confusion_FN, radius_for_points = create_plot()
+daily_confusion_FP, daily_confusion_FN, radius_for_points = create_plot(Radius_to_unify_points = 0.05)
 
 
 
-weekly_info
 print(f'cnt_NO = {cnt_downloaded}, cnt_YES = {cnt_not_downloaded}')
 print(18)
     
