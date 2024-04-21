@@ -6,15 +6,14 @@ true_positive = 0.54
 false_positive = 0.26
 false_negative = 0.20
 
+
 def plot_confusion_matrix(true_positive, false_positive, false_negative):
-
-
 
     true_negative = 1 - true_positive - false_positive - false_negative
 
     # Create the confusion matrix
-    confusion_matrix = np.array([[true_positive, false_negative],
-                                [false_positive, true_negative]])
+    confusion_matrix = np.array([[true_positive, false_positive],
+                                [false_negative, true_negative]])
 
     # Define the labels for the matrix
     labels = ['Positive', 'Negative']
@@ -44,13 +43,12 @@ def plot_confusion_matrix(true_positive, false_positive, false_negative):
             ax.text(i, j, f'{confusion_matrix[j, i]:.0%}',
                     ha="center", va="center", color="white" if confusion_matrix[j, i] > 0.5 else "black")
 
-    # Set the title and labels for the plot
+    # # Set the title and labels for the plot
     # ax.set_title("Confusion Matrix", fontsize=16)
-    ax.set_ylabel('Predicted', fontsize=14)
+    # ax.set_ylabel('Predicted', fontsize=14)
 
     # Add the "Actual" label above the chart
     ax.text(0.5, 1.1, 'Actual', ha='center', va='center', transform=ax.transAxes, fontsize=14)
 
     # Adjust the layout and display the plot
     fig.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust the top spacing to accommodate the "Actual" label
-    # plt.show()
