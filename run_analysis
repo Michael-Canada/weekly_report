@@ -44,15 +44,15 @@ RT_bindings_NOT_caught_by_MUSE_and_FORECAST = {}
 for date in collected_results_orig:
     #get rid of dates that are before 2024-04-12:
     # if date > '2024-03-27' and date <= '2024-04-05':
-    # if date > '2024-04-05' and date <= '2024-04-12':
-    if date > '2024-04-12' and date <= '2024-04-19':
+    if date > '2024-04-05' and date <= '2024-04-12':
+    # if date > '2024-04-12' and date <= '2024-04-19':
         collected_results[date] = collected_results_orig[date]
         
 for date in RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig:
     #get rid of dates that are before 2024-04-12:
     # if date > '2024-03-27' and date <= '2024-04-05':
-    # if date > '2024-04-05' and date <= '2024-04-12':
-    if date > '2024-04-12' and date <= '2024-04-19':
+    if date > '2024-04-05' and date <= '2024-04-12':
+    # if date > '2024-04-12' and date <= '2024-04-19':
         RT_bindings_NOT_caught_by_MUSE_and_FORECAST[date] = RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig[date]
 
 
@@ -94,9 +94,12 @@ for this_date in all_dates:
                 collection_of_bad_constraints[this_constraint[0]].append((this_date, monitored_uid, RT_shadow))
         
 for this_constraint in collection_of_bad_constraints:
-    print(f'Contingency: {this_constraint}')
+    total_RT = 0
     for this_date, monitored_uid, RT_shadow in collection_of_bad_constraints[this_constraint]:
-        print(f'    {this_date}:  {monitored_uid}, RT shadow price ${RT_shadow}')
+        total_RT += RT_shadow
+    print(f'Contingency: {this_constraint}, total RT shadow price ${total_RT:.2f}')
+    for this_date, monitored_uid, RT_shadow in collection_of_bad_constraints[this_constraint]:
+        print(f'    {this_date}:  {monitored_uid}, RT shadow price ${RT_shadow:.2f}')
     print(' ')
 
 
@@ -191,6 +194,10 @@ print('     ')
 
 plot_confusion_matrix(num_TP/num_total_cases, num_FP/num_total_cases, num_FN/num_total_cases)
 
+def num_of_days_in_the_blob(i):
+    return len(weekly_info.query('index in @point_ind[@i]'))
+
+
 def weight_on_num_of_days_in_the_blob(i):
     title = 'weight: num of days in the blob'
     total_days = 0
@@ -203,14 +210,22 @@ def weight_on_num_of_days_in_the_blob(i):
 def weight_on_number_of_hours_in_the_blob(i):
     title = 'weight: number of hours in the blob'
     return (100*num_of_points[i] / sum(num_of_points)), title
-def weight_on_average_num_of_active_hours_per_day(i):
-    title = 'weight: average num of active hours per day'
-    total = 0
-    for j in range(len(daily_confusion_FP)):
-        num_of_days = len(weekly_info.query('index in @point_ind[@j]'))
-        total += num_of_points[j] / num_of_days
+# def weight_on_average_num_of_active_hours_per_day(i):
+#     title = 'weight: average num of active hours per day'
+#     total = 0
+#     for j in range(len(daily_confusion_FP)):
+#         num_of_days = len(weekly_info.query('index in @point_ind[@j]'))
+#         total += num_of_points[j] / num_of_days
+#     num_of_days = len(weekly_info.query('index in @point_ind[@i]'))
+#     return (100 * num_of_points[i] / num_of_days / total), title
+def weight_on_num_of_active_hours_per_day(i):
+    title = 'weight: num of active hours per day'
+    # total = 0
+    # for j in range(len(daily_confusion_FP)):
+    #     num_of_days = len(weekly_info.query('index in @point_ind[@j]'))
+    #     total += num_of_points[j] / num_of_days
     num_of_days = len(weekly_info.query('index in @point_ind[@i]'))
-    return (100 * num_of_points[i] / num_of_days / total), title
+    return (num_of_points[i] / num_of_days), title
 def weight_on_total_RT_shadow_price(i):
     title = 'weight: total RT shadow price'
     total_shadow_price = 0
@@ -231,7 +246,7 @@ def weight_on_average_RT_shadow_prices_per_day(i):
     num_of_days = len(weekly_info.query('index in @point_ind[@i]'))
     return (100 * RT_shadow_price_of_this_blob / total / num_of_days), title
 
-collection_of_criteria = [weight_on_num_of_days_in_the_blob, weight_on_number_of_hours_in_the_blob, weight_on_average_num_of_active_hours_per_day, weight_on_total_RT_shadow_price, weight_on_average_RT_shadow_prices_per_day]
+collection_of_criteria = [weight_on_num_of_days_in_the_blob, weight_on_number_of_hours_in_the_blob, weight_on_num_of_active_hours_per_day, weight_on_total_RT_shadow_price, weight_on_average_RT_shadow_prices_per_day]
 
 # def on_click(event, daily_confusion_FP=daily_confusion_FP, daily_confusion_FN=daily_confusion_FN, num_of_points=num_of_points, radius_for_points=radius_for_points): 
 def on_click(event):
@@ -340,6 +355,10 @@ def create_plot(Radius_to_unify_points):
                 radius_for_points.pop(i)
             i -= 1
 
+        num_days_in_each_blob = []
+        for i in range(len(daily_confusion_FP)):
+            num_days_in_each_blob.append(num_of_days_in_the_blob(i))
+
         for ind, chosen_function in enumerate(collection_of_criteria):
     
             # create contours for equal TP
@@ -352,7 +371,7 @@ def create_plot(Radius_to_unify_points):
             ax.set_aspect('equal', adjustable='box')  # Set aspect ratio to be equal
             theta = np.linspace(0, 2*np.pi/4, 100)  # Define angles for the circular grid
             # r = np.arange(0, 1.1, .2)  # Define radii for the circular grid
-            r = [np.sqrt(r) for r in [.1, .5, .8, 1]]
+            r = [np.sqrt(r) for r in [.1, .5, .9, 1]]
             for radius in r:
                 x_circle = radius * np.cos(theta)
                 y_circle = radius * np.sin(theta)
@@ -386,10 +405,10 @@ def create_plot(Radius_to_unify_points):
             # ax.set_xticklabels([f"{.2**2:.2f}", f"{.4**2:.2f}", f"{.6**2:.2f}", f"{.8**2:.2f}", f"{1:.2f}"])   
             # ax.set_yticklabels([f"{.2**2:.2f}", f"{.4**2:.2f}", f"{.6**2:.2f}", f"{.8**2:.2f}", f"{1:.2f}"]) 
 
-            ax.set_xticks([np.sqrt(.1), np.sqrt(.5), np.sqrt(.8), 1])
-            ax.set_yticks([np.sqrt(.1), np.sqrt(.5), np.sqrt(.8), 1])
-            ax.set_xticklabels([f"{.1:.2f}", f"{.5:.2f}", f"{.8:.2f}", f"{1:.2f}"])   
-            ax.set_yticklabels([f"{.1:.2f}", f"{.5:.2f}", f"{.8:.2f}", f"{1:.2f}"])  
+            ax.set_xticks([np.sqrt(.1), np.sqrt(.5), np.sqrt(.9), 1])
+            ax.set_yticks([np.sqrt(.1), np.sqrt(.5), np.sqrt(.9), 1])
+            ax.set_xticklabels([f"{.1:.2f}", f"{.5:.2f}", f"{.9:.2f}", f"{1:.2f}"])   
+            ax.set_yticklabels([f"{.1:.2f}", f"{.5:.2f}", f"{.9:.2f}", f"{1:.2f}"])  
 
             ax.set_xlabel('False Positive')
             ax.set_ylabel('False Negative')
@@ -401,13 +420,27 @@ def create_plot(Radius_to_unify_points):
 ############
             if True:
                 ax = axs[1, ind]
+                ind, chosen_function in enumerate(collection_of_criteria)
+                bins = [0, .5, .9, 1]  # Adjust the number of bins as needed
+                if chosen_function == weight_on_num_of_active_hours_per_day:
+                    
+                    
+                    hist_total_hours, _ = np.histogram([1-TP for TP in daily_confusion_TP], bins=bins, weights=num_of_points)
+                    hist_num_days, _ = np.histogram([1-TP for TP in daily_confusion_TP], bins=bins, weights=num_days_in_each_blob)
+                    average_hours_per_day_in_blob = hist_total_hours / hist_num_days
+                    
+                    ax.bar(bins[:-1], average_hours_per_day_in_blob, width=np.diff(bins), align='edge', edgecolor='black', color='blue', alpha=0.7)
 
-                # Create a histogram of daily_confusion_TP
-                bins = np.linspace(0, 1, 4)  # Adjust the number of bins as needed
-                hist, _ = np.histogram([1-TP for TP in daily_confusion_TP], bins=bins, weights=values)
+                else:
+                    
+                    hist, _ = np.histogram([1-TP for TP in daily_confusion_TP], bins=bins, weights=values)
 
-                # Plot histogram
-                ax.bar(bins[:-1], hist, width=np.diff(bins), align='edge')
+                    # Plot histogram
+                    ax.bar(bins[:-1], hist, width=np.diff(bins), align='edge', edgecolor='black', color='blue', alpha=0.7)
+                ax.set_xticks([.25, .7, .95])
+                ax.set_xticklabels(['TP < 0.5', '0.5-0.9', '> 0.9'], rotation=-45, fontsize=16)
+                
+
                 ax.set_xlabel('True Positive')
                 ax.set_ylabel('Percent')
                 ax.set_title(f'Histogram of True Positive, rating = {percent_of_rating}')
