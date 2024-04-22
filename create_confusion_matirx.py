@@ -12,17 +12,18 @@ def plot_confusion_matrix(true_positive, false_positive, false_negative):
     true_negative = 1 - true_positive - false_positive - false_negative
 
     # Create the confusion matrix
-    confusion_matrix = np.array([[true_positive, false_positive],
-                                [false_negative, true_negative]])
+    confusion_matrix = np.array(
+        [[true_positive, false_positive], [false_negative, true_negative]]
+    )
 
     # Define the labels for the matrix
-    labels = ['Positive', 'Negative']
+    labels = ["Positive", "Negative"]
 
     # Create a figure and axis
     fig, ax = plt.subplots(figsize=(6, 6))
 
     # Create a heatmap of the confusion matrix
-    im = ax.imshow(confusion_matrix, cmap='Blues')
+    im = ax.imshow(confusion_matrix, cmap="Blues")
 
     # # Add colorbar
     # cbar = ax.figure.colorbar(im, ax=ax)
@@ -40,15 +41,31 @@ def plot_confusion_matrix(true_positive, false_positive, false_negative):
     # Add labels to each cell of the matrix
     for i in range(len(labels)):
         for j in range(len(labels)):
-            ax.text(i, j, f'{confusion_matrix[j, i]:.0%}',
-                    ha="center", va="center", color="white" if confusion_matrix[j, i] > 0.5 else "black")
+            ax.text(
+                i,
+                j,
+                f"{confusion_matrix[j, i]:.0%}",
+                ha="center",
+                va="center",
+                color="white" if confusion_matrix[j, i] > 0.5 else "black",
+            )
 
     # # Set the title and labels for the plot
     # ax.set_title("Confusion Matrix", fontsize=16)
     # ax.set_ylabel('Predicted', fontsize=14)
 
     # Add the "Actual" label above the chart
-    ax.text(0.5, 1.1, 'Actual', ha='center', va='center', transform=ax.transAxes, fontsize=14)
+    ax.text(
+        0.5,
+        1.1,
+        "Actual",
+        ha="center",
+        va="center",
+        transform=ax.transAxes,
+        fontsize=14,
+    )
 
     # Adjust the layout and display the plot
-    fig.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust the top spacing to accommodate the "Actual" label
+    fig.tight_layout(
+        rect=[0, 0.03, 1, 0.95]
+    )  # Adjust the top spacing to accommodate the "Actual" label
