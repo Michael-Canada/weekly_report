@@ -2,6 +2,7 @@
 # placebo_api_local
 
 import sys
+import bisect
 sys.path.append('/Users/michael.simantov/Documents/mu-placebo-api')
 sys.path.append('/Users/michael.simantov/Documents/mu-placebo-api/placebo_api')
 sys.path.append('/Users/michael.simantov/Documents/mu-placebo-api/placebo_api/utils')
@@ -21,10 +22,11 @@ import pickle
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 import numpy as np
-# import os 
+import os 
 from scipy.interpolate import griddata
 import copy
 from create_confusion_matirx import plot_confusion_matrix
+from scipy.stats import norm
 
 # list of hyperparameters
 subplotting = False
@@ -32,7 +34,8 @@ to_date = datetime.datetime.now().strftime('%Y-%m-%d')
 
 
 today_date = datetime.datetime.now().strftime('%Y-%m-%d')
-today_date = '2024-04-20'
+# today_date = '2024-04-20'
+today_date = '2024-04-29'
 data_to_save = pickle.load(open(f'weekly_report_as_of_{today_date}.pkl', 'rb'))
 collected_results_orig = data_to_save['collected_results']
 percent_of_ratings = data_to_save['percent_of_ratings']
@@ -42,17 +45,19 @@ collected_results = {}
 RT_bindings_NOT_caught_by_MUSE_and_FORECAST = {}
 # keep only the dates that are after 2024-04-12
 for date in collected_results_orig:
-    #get rid of dates that are before 2024-04-12:
+    # choose the right week:
     # if date > '2024-03-27' and date <= '2024-04-05':
-    if date > '2024-04-05' and date <= '2024-04-12':
+    # if date > '2024-04-05' and date <= '2024-04-12':
     # if date > '2024-04-12' and date <= '2024-04-19':
+    if date > '2024-04-19' and date <= '2024-04-26':
         collected_results[date] = collected_results_orig[date]
         
 for date in RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig:
-    #get rid of dates that are before 2024-04-12:
+    # choose the right week:
     # if date > '2024-03-27' and date <= '2024-04-05':
-    if date > '2024-04-05' and date <= '2024-04-12':
+    # if date > '2024-04-05' and date <= '2024-04-12':
     # if date > '2024-04-12' and date <= '2024-04-19':
+    if date > '2024-04-19' and date <= '2024-04-26':
         RT_bindings_NOT_caught_by_MUSE_and_FORECAST[date] = RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig[date]
 
 
@@ -194,22 +199,60 @@ print('     ')
 
 plot_confusion_matrix(num_TP/num_total_cases, num_FP/num_total_cases, num_FN/num_total_cases)
 
+def save_historica_printout_results(df):
+    historic_printout_results = df.values.tolist()
+    # import os 
+    # import pickle
+    # Assuming you have the historic_printout_results dictionary in memory 
+    # my_date = { "2024-04-20": "Some data", "2024-04-21": "More data"} 
+    
+    # Load the dictionary from the file 
+    # try: 
+    #     with open("collected_date_20240420.pkl", "rb") as file: 
+    #         my_data_from_file = pickle.load(file) 
+    # except FileNotFoundError: 
+    #     my_data_from_file = 
+    
+    # Merge the dictionaries 
+    # my_data_from_file.update(historic_printout_results) 
+    
+    # Save the updated dictionary to a new file 
+    new_file_name = "histogram_printout_collection_temp.pkl" 
+    with open(new_file_name, "wb") as file: 
+        pickle.dump(historic_printout_results, file) 
+        file.flush() 
+        os.fsync(file.fileno()) 
+    # Replace the original file with the new file 
+    original_file_name = "histogram_printout_collection.pkl" 
+    os.replace(new_file_name, original_file_name) 
+    
+    print("Data saved successfully.")
+
+    return
+
+
 def num_of_days_in_the_blob(i):
     return len(weekly_info.query('index in @point_ind[@i]'))
 
 
-def weight_on_num_of_days_in_the_blob(i):
+# bins = [0, .5, .9, 1]  # for the histogram: Number of bins as needed
+bins = [0, .1, .5, 1]  # for the histogram: Number of bins as needed
+def weight_on_num_of_days_in_the_blob(i, percent_of_rating):
     title = 'weight: num of days in the blob'
     total_days = 0
     for j in range(len(daily_confusion_FP)):
         num_of_days = len(weekly_info.query('index in @point_ind[@j]'))
         total_days += num_of_days
     num_of_days = len(weekly_info.query('index in @point_ind[@i]'))
-    # total_days = len(weekly_info)
-    return(100 * num_of_days / total_days), title
-def weight_on_number_of_hours_in_the_blob(i):
+    # calculation for histogram
+    hist_num_days, _ = np.histogram([row['TP_for_chart'] for index, row in weekly_info.query('Rating == @percent_of_rating').iterrows()], bins=bins)
+    hist_total_days = len(weekly_info.query('Rating == @percent_of_rating'))
+    return (100 * num_of_days / total_days), (100 * hist_num_days / hist_total_days), title
+def weight_on_number_of_hours_in_the_blob(i, percent_of_rating):
     title = 'weight: number of hours in the blob'
-    return (100*num_of_points[i] / sum(num_of_points)), title
+    hist_num_hours, _ = np.histogram([row['TP_for_chart'] for index, row in weekly_info.query('Rating == @percent_of_rating').iterrows()], bins=bins, weights=weekly_info.query('Rating == @percent_of_rating')['Num Hours'])
+    hist_total_hours = weekly_info.query('Rating == @percent_of_rating')['Num Hours'].sum()
+    return (100*num_of_points[i] / sum(num_of_points)), (100 *  hist_num_hours / hist_total_hours), title
 # def weight_on_average_num_of_active_hours_per_day(i):
 #     title = 'weight: average num of active hours per day'
 #     total = 0
@@ -218,15 +261,15 @@ def weight_on_number_of_hours_in_the_blob(i):
 #         total += num_of_points[j] / num_of_days
 #     num_of_days = len(weekly_info.query('index in @point_ind[@i]'))
 #     return (100 * num_of_points[i] / num_of_days / total), title
-def weight_on_num_of_active_hours_per_day(i):
+def weight_on_num_of_active_hours_per_day(i, percent_of_rating):
     title = 'weight: num of active hours per day'
     # total = 0
     # for j in range(len(daily_confusion_FP)):
     #     num_of_days = len(weekly_info.query('index in @point_ind[@j]'))
     #     total += num_of_points[j] / num_of_days
     num_of_days = len(weekly_info.query('index in @point_ind[@i]'))
-    return (num_of_points[i] / num_of_days), title
-def weight_on_total_RT_shadow_price(i):
+    return (num_of_points[i] / num_of_days), None, title
+def weight_on_total_RT_shadow_price(i, percent_of_rating):
     title = 'weight: total RT shadow price'
     total_shadow_price = 0
     for j in range(len(daily_confusion_FP)):
@@ -234,8 +277,11 @@ def weight_on_total_RT_shadow_price(i):
         total_shadow_price += RT_shadow_price_of_this_blob
     # total_shadow_price = weekly_info.observed_RT_shadow_price.sum()
     RT_shadow_price_of_this_blob = weekly_info.query('index in @point_ind[@i]').observed_RT_shadow_price.sum()
-    return (100*RT_shadow_price_of_this_blob / total_shadow_price), title
-def weight_on_average_RT_shadow_prices_per_day(i):
+    #histogram calculations:
+    hist__RT_shadow_price, _ = np.histogram([row['TP_for_chart'] for index, row in weekly_info.query('Rating == @percent_of_rating').iterrows()], bins=bins, weights=weekly_info.query('Rating == @percent_of_rating')['observed_RT_shadow_price'])
+    hist_total_RT_shadow_price = hist__RT_shadow_price.sum()
+    return (100*RT_shadow_price_of_this_blob / total_shadow_price), (100 * hist__RT_shadow_price / hist_total_RT_shadow_price), title
+def weight_on_average_RT_shadow_prices_per_day(i, percent_of_rating):
     title = 'weight: average RT shadow prices per day'
     total = 0
     for j in range(len(daily_confusion_FP)):
@@ -244,7 +290,11 @@ def weight_on_average_RT_shadow_prices_per_day(i):
         total += RT_shadow_price_of_this_blob / num_of_days
     RT_shadow_price_of_this_blob = weekly_info.query('index in @point_ind[@i]').observed_RT_shadow_price.sum()
     num_of_days = len(weekly_info.query('index in @point_ind[@i]'))
-    return (100 * RT_shadow_price_of_this_blob / total / num_of_days), title
+    # histogram calculations:
+    hist_total_RT_shadow_price, _ = np.histogram([row['TP_for_chart'] for index, row in weekly_info.query('Rating == @percent_of_rating').iterrows()], bins=bins, weights=weekly_info.query('Rating == @percent_of_rating')['observed_RT_shadow_price'])
+    hist_num_days, _ = np.histogram([row['TP_for_chart'] for index, row in weekly_info.query('Rating == @percent_of_rating').iterrows()], bins=bins)
+    hist_total_shadow_price = (hist_total_RT_shadow_price / hist_num_days).sum()
+    return (100 * RT_shadow_price_of_this_blob / total / num_of_days), (100 * hist_total_RT_shadow_price / hist_num_days / hist_total_shadow_price), title
 
 collection_of_criteria = [weight_on_num_of_days_in_the_blob, weight_on_number_of_hours_in_the_blob, weight_on_num_of_active_hours_per_day, weight_on_total_RT_shadow_price, weight_on_average_RT_shadow_prices_per_day]
 
@@ -257,9 +307,9 @@ def on_click(event):
                 print(' ')
                 num_of_days = len(weekly_info.query('index in @point_ind[@i]'))
                 print(f" Number of days: {num_of_days}")
-                print(f" Total (and average) number of hours: {num_of_points[i]}, ({num_of_points[i] / num_of_days})")
+                print(f" Total (and average) number of hours: {num_of_points[i]}, ({num_of_points[i] / num_of_days}:.2f)")
                 total_RT_shadow_price = weekly_info.query('index in @point_ind[@i]').observed_RT_shadow_price.sum()
-                print(f" Total (and average) RT shadow price: {total_RT_shadow_price} ({total_RT_shadow_price / num_of_days})")
+                print(f" Total (and average) RT shadow price: {total_RT_shadow_price} ({total_RT_shadow_price / num_of_days}:.2f)")
                 print(f" False Positive: {daily_confusion_FP[i]}") 
                 print(f" False Negative: {daily_confusion_FN[i]}")
 
@@ -269,6 +319,28 @@ def on_click(event):
 
 
 
+weekly_info['TP_for_chart'] = 1 - (weekly_info['FP_for_chart'] + weekly_info['FN_for_chart'])
+# new_row = {'title':title, 'Rating': percent_of_rating, 'bin':this_bin, 'value':this_hist_value, 'date_begining':date_begining, 'date_ending':date_ending}
+# printout_collection = {}
+# printout_collection['title'] = []
+# printout_collection['Rating'] = []
+# printout_collection['bin'] = []
+# printout_collection['value'] = []
+# printout_collection['date_begining'] = []
+# printout_collection['date_ending'] = []
+
+# Load the dictionary from the file 
+try: 
+    with open("histogram_printout_collection.pkl", "rb") as file: 
+        past_histogram_printout_collection = pickle.load(file) 
+except FileNotFoundError: 
+    past_histogram_printout_collection = [] 
+    
+
+titles = ['title', 'Rating', 'bin', 'value', 'date_begining', 'date_ending']
+histogram_collection_of_data = []
+# historic_printout_results = pd.DataFrame(columns=titles)
+colors = ['green', 'orange', 'red']
 
 def create_plot(Radius_to_unify_points):
 
@@ -371,40 +443,51 @@ def create_plot(Radius_to_unify_points):
             ax.set_aspect('equal', adjustable='box')  # Set aspect ratio to be equal
             theta = np.linspace(0, 2*np.pi/4, 100)  # Define angles for the circular grid
             # r = np.arange(0, 1.1, .2)  # Define radii for the circular grid
-            r = [np.sqrt(r) for r in [.1, .5, .9, 1]]
-            for radius in r:
+            r = [np.sqrt(r) for r in [.5, .9, 1]]
+            for this_ind, radius in enumerate(r):
                 x_circle = radius * np.cos(theta)
                 y_circle = radius * np.sin(theta)
-                ax.plot(x_circle, y_circle, color='red', linestyle='dashed', alpha=0.7, linewidth=0.7)
+                ax.plot(x_circle, y_circle, color=colors[this_ind], linestyle='dashed', alpha=0.7, linewidth=3.7)
                 ax.text(radius * np.cos(np.pi/4), radius * np.sin(np.pi/4), f'{100-100*radius**2:.0f}%', style='italic', color='red', fontsize=8, ha='center', va='center')
 
             values = []
+            values_for_histogram = []
             # circle each blob using a radius that is proportional to the number of points in the blob
             for i in range(len(daily_confusion_FP)):
-                value, title = chosen_function(i)
+                value, value_histogram, title = chosen_function(i, percent_of_rating)
                 values.append(value)
+                values_for_histogram.append(value_histogram)
+                
+
+
             
             # The number of points of each blob and the curcle around it are proportional to the number of points in the blob
             text_size = np.interp(values, (min(values), (max(values) + 100)/2), (10, 30))
             radius_range = np.interp(values, (min(values), (max(values) + 100)/2), (.03, .08))
 
             for i in range(len(daily_confusion_FP)):
-                ax.text(np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i]), f'{values[i]:.0f}', fontsize=text_size[i], ha='center', va='center')
+                if daily_confusion_TP[i] >= 0.5:
+                    ax.text(np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i]), f'{values[i]:.0f}', fontsize=text_size[i], ha='center', va='center', color=colors[0])
+                elif daily_confusion_TP[i] > 0.1:
+                    ax.text(np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i]), f'{values[i]:.0f}', fontsize=text_size[i], ha='center', va='center', color=colors[1])
+                else:
+                    ax.text(np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i]), f'{values[i]:.0f}', fontsize=text_size[i], ha='center', va='center', color=colors[2])
                 
             for i in range(len(daily_confusion_FP)):
                 # add a circle for each point
                 radius_for_points[i] = radius_range[i]
-                circle = Circle((np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i])), radius=radius_for_points[i], fill=False, color='black')
+                if daily_confusion_TP[i] >= 0.5:
+                    circle = Circle((np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i])), radius=radius_for_points[i], fill=False, color=colors[0])
+                elif daily_confusion_TP[i] > 0.1:
+                    circle = Circle((np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i])), radius=radius_for_points[i], fill=False, color=colors[1])
+                else:
+                    circle = Circle((np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i])), radius=radius_for_points[i], fill=False, color=colors[2])
+                
                 ax.add_patch(circle)
 
             if percent_of_rating == -1:
                 plt.connect('button_press_event', on_click)
             
-            # ax.set_xticks([.2, .4, .6, .8, 1])
-            # ax.set_yticks([.2, .4, .6, .8, 1])
-            # ax.set_xticklabels([f"{.2**2:.2f}", f"{.4**2:.2f}", f"{.6**2:.2f}", f"{.8**2:.2f}", f"{1:.2f}"])   
-            # ax.set_yticklabels([f"{.2**2:.2f}", f"{.4**2:.2f}", f"{.6**2:.2f}", f"{.8**2:.2f}", f"{1:.2f}"]) 
-
             ax.set_xticks([np.sqrt(.1), np.sqrt(.5), np.sqrt(.9), 1])
             ax.set_yticks([np.sqrt(.1), np.sqrt(.5), np.sqrt(.9), 1])
             ax.set_xticklabels([f"{.1:.2f}", f"{.5:.2f}", f"{.9:.2f}", f"{1:.2f}"])   
@@ -412,38 +495,104 @@ def create_plot(Radius_to_unify_points):
 
             ax.set_xlabel('False Positive')
             ax.set_ylabel('False Negative')
-            ax.set_title(f'{title}: \n rating: {int(100*percent_of_rating)}%, {to_date}')
+            if percent_of_rating == -1:
+                ax.set_title(f'{title}: \n rating: BEST')
+            else:
+                ax.set_title(f'{title}: \n rating: {int(100*percent_of_rating)}%')
 
             # add grid to the image. The grid should be radial, and reflects the fact that the closer to the center, the better the results
             ax.grid(True)
 
-############
+            # Create a histogram based on TP
             if True:
                 ax = axs[1, ind]
-                ind, chosen_function in enumerate(collection_of_criteria)
-                bins = [0, .5, .9, 1]  # Adjust the number of bins as needed
+                # ind, chosen_function in enumerate(collection_of_criteria)
                 if chosen_function == weight_on_num_of_active_hours_per_day:
                     
+                    hist_total_hours, _ = np.histogram([row['TP_for_chart'] for index, row in weekly_info.query('Rating == @percent_of_rating').iterrows()], bins=bins, weights=weekly_info.query('Rating == @percent_of_rating')['Num Hours'])
+                    hist_num_days, _ = np.histogram([row['TP_for_chart'] for index, row in weekly_info.query('Rating == @percent_of_rating').iterrows()], bins=bins)
+                    hist = hist_total_hours / hist_num_days
                     
-                    hist_total_hours, _ = np.histogram([1-TP for TP in daily_confusion_TP], bins=bins, weights=num_of_points)
-                    hist_num_days, _ = np.histogram([1-TP for TP in daily_confusion_TP], bins=bins, weights=num_days_in_each_blob)
-                    average_hours_per_day_in_blob = hist_total_hours / hist_num_days
-                    
-                    ax.bar(bins[:-1], average_hours_per_day_in_blob, width=np.diff(bins), align='edge', edgecolor='black', color='blue', alpha=0.7)
+                    # ax.bar(bins[:-1], hist, width=np.diff(bins), align='edge', edgecolor='black', color='blue', alpha=0.7)
+                    ax.bar([1-bin for bin in bins][-1::-1][:-1], hist[-1::-1], width=np.abs(np.diff([1-bin for bin in bins][-1::-1])), align='edge', edgecolor='black', color=['green','orange','red'], alpha=0.5)
 
                 else:
-                    
-                    hist, _ = np.histogram([1-TP for TP in daily_confusion_TP], bins=bins, weights=values)
+                    hist = values_for_histogram[0]
 
                     # Plot histogram
-                    ax.bar(bins[:-1], hist, width=np.diff(bins), align='edge', edgecolor='black', color='blue', alpha=0.7)
-                ax.set_xticks([.25, .7, .95])
-                ax.set_xticklabels(['TP < 0.5', '0.5-0.9', '> 0.9'], rotation=-45, fontsize=16)
-                
+                    # ax.bar(bins[:-1], hist, width=np.diff(bins), align='edge', edgecolor='black', color='blue', alpha=0.7)
+                    container = ax.bar([1-bin for bin in bins][-1::-1][:-1], hist[-1::-1], width=np.abs(np.diff([1-bin for bin in bins][-1::-1])), align='edge', edgecolor='black', 
+                    color=['green','orange','red'], alpha=0.5)
+                    
 
+                ax.set_xticks([.25, .7, .95])
+                ax.set_xticklabels(['TP > 0.5', '0.5-0.9', '< 0.1'], rotation=-45, fontsize=16)
                 ax.set_xlabel('True Positive')
                 ax.set_ylabel('Percent')
                 ax.set_title(f'Histogram of True Positive, rating = {percent_of_rating}')
+
+                # save data for printout
+                date_begining = weekly_info.Date.min()
+                date_ending = weekly_info.Date.max()
+
+                # do not delete: This organizes the data in a pandas DataFrame
+                # for this_bin, this_hist_value in zip(bins, hist):
+                #     new_row = {'title':title, 'Rating': percent_of_rating, 'bin':this_bin, 'value':this_hist_value, 'date_begining':date_begining, 'date_ending':date_ending}
+                #     historic_printout_results.loc[len(historic_printout_results)] = new_row
+
+                df = pd.DataFrame(past_histogram_printout_collection, columns=titles)
+                # remove duplicates in df
+                df = df.drop_duplicates(subset=['title', 'Rating', 'bin', 'value', 'date_begining', 'date_ending'])
+                
+                # find the percentile of each bin and put it on the histogram
+                locs_to_write_percentiles = [.25, .7, .95]
+                ind = 0
+                historic_means = []
+                historic_stds = []
+                current_histogram_value = []
+                for this_bin, this_hist_value in zip([1-bin for bin in bins][-1::-1], hist[-1::-1]):
+                    relevant_values = df.query('title == @title and Rating == @percent_of_rating and bin == @this_bin')['value']
+                    # convert relevant_values to np.array
+                    relevant_values = np.array(sorted(relevant_values))
+
+                    # find the statistics of the relevant_values
+                    historic_means.append(np.mean(relevant_values))
+                    historic_stds.append(np.std(relevant_values))
+                    current_histogram_value.append(this_hist_value)
+
+                    # find the percentile of this_hist_value in the relevant_values by assuming a normal distribution
+                    quantile = norm.cdf(this_hist_value, loc=np.mean(relevant_values), scale=np.std(relevant_values))
+                    # quantile = bisect.bisect(relevant_values, this_hist_value) / (len(relevant_values) + 1) + 1 / 2 / (len(relevant_values) + 1)
+
+                    # put the quantile on the histogram, in the middle of the bin
+                    if quantile < 0.1 or quantile > 0.9:
+                        ax.text(locs_to_write_percentiles[ind], this_hist_value, f'{100*quantile:.0f}%', fontsize=24, ha='center', va='bottom', color='red')
+                    else:
+                        ax.text(locs_to_write_percentiles[ind], this_hist_value, f'{100*quantile:.0f}%', fontsize=12, ha='center', va='bottom', color='black')
+                    ind += 1
+                    
+                    past_histogram_printout_collection.append([title, percent_of_rating, this_bin, this_hist_value, date_begining, date_ending])
+                
+                # find the percentile of each bin
+                # Calculate yerr values. This is the difference between the current histogram value and the mean of the historic values
+                yerr = [[],[]]
+                for mean, std, hist_value in zip(historic_means, historic_stds, current_histogram_value):
+                    yerr[0].append(max(0, hist_value - mean))
+                    yerr[1].append(max(0, -hist_value + mean))
+                
+                # Add error bars
+                # Calculate bin midpoints
+                bin_midpoints = [(bins[i] + bins[i+1]) / 2 for i in range(len(bins) - 1)]
+
+                # # Add error bars
+                ax.errorbar([1 - bin for bin in bin_midpoints][-1::-1], hist[-1::-1], yerr=yerr, fmt='none', capsize=5, color='black')
+
+    #add the latest data to the historic_printout_results
+    df = pd.DataFrame(past_histogram_printout_collection, columns=titles)
+    # remove duplicates in df
+    df = df.drop_duplicates(subset=['title', 'Rating', 'bin', 'value', 'date_begining', 'date_ending'])
+    save_historica_printout_results(df)
+
 ############ 
 
             ###############

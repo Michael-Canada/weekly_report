@@ -26,7 +26,7 @@ import os
 
 # list of hyperparameters
 Num_congestions_per_day = 30  #30
-Num_of_days_to_look_back = 25  #25
+Num_of_days_to_look_back = 15  #25
 percent_of_ratings = [0.99, 0.95, 0.9, 0.85, 0.8]
 # percent_of_ratings = [0.99]
 print(18)
@@ -302,17 +302,18 @@ for as_of in tqdm(as_ofs_actual):
                 print(18)
                 ans, constraint_data = calc_collected_confusion_metrics(conf_matrix, tomorrow_date, monitored_uid, contingency_uid, percent_of_rating, percent_of_rating, obsered_RT_shadow_price)
 
-print(19)
 data_to_save = {'collected_results': collected_results, 'RT_bindings_NOT_caught_by_MUSE_and_FORECAST': RT_bindings_NOT_caught_by_MUSE_and_FORECAST, 'percent_of_ratings': percent_of_ratings}
 today_date = datetime.datetime.now().strftime('%Y-%m-%d')
 with open(f'weekly_report_as_of_{today_date}.pkl', 'wb') as f:
     pickle.dump(data_to_save, f)
+    f.flush() 
+    os.fsync(f.fileno())
 
 # zzz
-today_date = datetime.datetime.now().strftime('%Y-%m-%d')
-data_to_save = pickle.load(open(f'weekly_report_as_of_{today_date}.pkl', 'rb'))
-collected_results = data_to_save['collected_results']
-RT_bindings_NOT_caught_by_MUSE_and_FORECAST = data_to_save['RT_bindings_NOT_caught_by_MUSE_and_FORECAST']
+# today_date = datetime.datetime.now().strftime('%Y-%m-%d')
+# data_to_save = pickle.load(open(f'weekly_report_as_of_{today_date}.pkl', 'rb'))
+# collected_results = data_to_save['collected_results']
+# RT_bindings_NOT_caught_by_MUSE_and_FORECAST = data_to_save['RT_bindings_NOT_caught_by_MUSE_and_FORECAST']
 
 
 print(20)
