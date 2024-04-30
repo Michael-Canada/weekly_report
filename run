@@ -790,7 +790,7 @@ if False: # Michael comments out because it is not relevant
     df_bc_metrics['confusion_matrix'] = df_bc_metrics['confusion_matrix'].apply(lambda x: x._asdict())
     df_bc_metrics = df_bc_metrics.join(pd.json_normalize(df_bc_metrics['confusion_matrix']))
     df_bc_metrics.loc[df_bc_metrics['lookahead_days']==lookahead_days,['true_positive','false_positive','false_negative']].describe()
-
+ 
     df_bc_metrics['total_actual'] = df_bc_metrics['binding_constraint_actual_dict'].apply(lambda x: len(x))
     df_bc_metrics['total_forecast'] = df_bc_metrics['binding_constraint_forecast_dict'].apply(lambda x: len(x))
 
