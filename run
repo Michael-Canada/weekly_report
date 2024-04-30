@@ -784,7 +784,7 @@ if False: # Michael comments out because it is not relevant
         # except:
         #     print(key)
         #     continue
-
+ 
     ## calculate other classification metrics
     df_bc_metrics = pd.DataFrame(bc_metrics)
     df_bc_metrics['confusion_matrix'] = df_bc_metrics['confusion_matrix'].apply(lambda x: x._asdict())
