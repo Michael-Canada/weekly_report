@@ -35,7 +35,7 @@ to_date = datetime.datetime.now().strftime('%Y-%m-%d')
 
 today_date = datetime.datetime.now().strftime('%Y-%m-%d')
 # today_date = '2024-04-20'
-today_date = '2024-04-29'
+# today_date = '2024-04-29'
 data_to_save = pickle.load(open(f'weekly_report_as_of_{today_date}.pkl', 'rb'))
 collected_results_orig = data_to_save['collected_results']
 percent_of_ratings = data_to_save['percent_of_ratings']
@@ -49,7 +49,8 @@ for date in collected_results_orig:
     # if date > '2024-03-27' and date <= '2024-04-05':
     # if date > '2024-04-05' and date <= '2024-04-12':
     # if date > '2024-04-12' and date <= '2024-04-19':
-    if date > '2024-04-19' and date <= '2024-04-26':
+    # if date > '2024-04-19' and date <= '2024-04-26':
+    if date > '2024-04-26' and date <= '2024-05-03':
         collected_results[date] = collected_results_orig[date]
         
 for date in RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig:
@@ -57,7 +58,8 @@ for date in RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig:
     # if date > '2024-03-27' and date <= '2024-04-05':
     # if date > '2024-04-05' and date <= '2024-04-12':
     # if date > '2024-04-12' and date <= '2024-04-19':
-    if date > '2024-04-19' and date <= '2024-04-26':
+    # if date > '2024-04-19' and date <= '2024-04-26':
+    if date > '2024-04-26' and date <= '2024-05-03':
         RT_bindings_NOT_caught_by_MUSE_and_FORECAST[date] = RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig[date]
 
 
@@ -120,7 +122,7 @@ num_of_points = []
 point_ind = []  # Initialize variables to store the index of the merged point
 # original_pnts = []
 radius_for_points = [] 
-titles = ['index', 'FP_for_chart', 'FN_for_chart', 'TP', 'FP', 'FN', 'Date', 'Monitored_uid', 'Contingency_uid', 'Num Hours', 'Rating', 'orig_rating', 'observed_RT_shadow_price']
+titles = ['index', 'FP_for_chart', 'FN_for_chart', 'TP', 'FP', 'FN', 'Date', 'Monitored_uid', 'Contingency_uid', 'Num Hours', 'Rating', 'orig_rating', 'observed_RT_shadow_price', 'forecast_RT_shadow_price']
 weekly_info = pd.DataFrame(columns=titles)
 
 # At this point we have to save. Any graphing will be done based on the saved data to the DataFrame
@@ -135,8 +137,8 @@ weekly_info = pd.DataFrame(columns=titles)
 
 # i=0
 # for date_of_forecast in collected_results:
-#     for false_positive, false_negative, TP, FP, FN, tomorrow_date, monitored_uid, contingency_uid, num_points, rating, observed_RT_shadow_price in collected_results[date_of_forecast]:
-#         new_row = {'index':i, 'FP_for_chart': false_positive, 'FN_for_chart': false_negative, 'TP': TP, 'FP': FP, 'FN': FN, 'Date': tomorrow_date, 'Monitored_uid': monitored_uid, 'Contingency_uid': contingency_uid, 'Num Hours': num_points, 'Rating': rating, 'observed_RT_shadow_price':observed_RT_shadow_price}
+#     for false_positive, false_negative, TP, FP, FN, tomorrow_date, monitored_uid, contingency_uid, num_points, rating, observed_RT_shadow_price, forecast_RT_shadow_price in collected_results[date_of_forecast]:
+#         new_row = {'index':i, 'FP_for_chart': false_positive, 'FN_for_chart': false_negative, 'TP': TP, 'FP': FP, 'FN': FN, 'Date': tomorrow_date, 'Monitored_uid': monitored_uid, 'Contingency_uid': contingency_uid, 'Num Hours': num_points, 'Rating': rating, 'observed_RT_shadow_price':observed_RT_shadow_price, forecast_RT_shadow_price:forecast_RT_shadow_price}
 #         weekly_info.loc[len(weekly_info)] = new_row
 #         i += 1
 
@@ -151,32 +153,34 @@ for date_of_forecast in collected_results:
 
     #convert collected_results_summary to a DataFrame
     collected_results_summary = pd.DataFrame(collected_results_summary)
-    collected_results_summary.columns = ['counter', 'false_positive', 'false_negative', 'TP', 'FP', 'FN', 'tomorrow_date', 'monitored_uid', 'contingency_uid', 'num_points', 'rating', 'orig_rating', 'observed_RT_shadow_price']
+    collected_results_summary.columns = ['counter', 'false_positive', 'false_negative', 'TP', 'FP', 'FN', 'tomorrow_date', 'monitored_uid', 'contingency_uid', 'num_points', 'rating', 'orig_rating', 'observed_RT_shadow_price', 'forecast_RT_shadow_price']
     
     # for every combination of monitored_uid and contingency_uid, keep the row with the lowest sum of false_positive + false_negative. Add collected_results_summary['rating']/1000 so that in case we have a tie, the one with the highest rating will be chosen.
     collected_results_summary['sum_FP_FN'] = collected_results_summary['false_positive'] + collected_results_summary['false_negative'] - collected_results_summary['rating']/1000
     collected_results_summary = collected_results_summary.sort_values(by='sum_FP_FN')
     collected_results_summary = collected_results_summary.drop_duplicates(subset=['monitored_uid', 'contingency_uid'], keep='first')
-    # collected_results[date_of_forecast] = collected_results_summary[['counter', 'false_positive', 'false_negative', 'TP', 'FP', 'FN', 'tomorrow_date', 'monitored_uid', 'contingency_uid', 'num_points', 'rating', 'orig_rating', 'observed_RT_shadow_price']].values.tolist()
+    # collected_results[date_of_forecast] = collected_results_summary[['counter', 'false_positive', 'false_negative', 'TP', 'FP', 'FN', 'tomorrow_date', 'monitored_uid', 'contingency_uid', 'num_points', 'rating', 'orig_rating', 'observed_RT_shadow_price', 'forecast_RT_shadow_price']].values.tolist()
     
     # change the rating at each row to become -1:
     collected_results_summary['rating'] = -1
 
     #convert the DataFrame back to a dictionary and add this dictionary to collected_results
-    for i in collected_results_summary[['counter', 'false_positive', 'false_negative', 'TP', 'FP', 'FN', 'tomorrow_date', 'monitored_uid', 'contingency_uid', 'num_points', 'rating', 'orig_rating', 'observed_RT_shadow_price']].values.tolist():
+    for i in collected_results_summary[['counter', 'false_positive', 'false_negative', 'TP', 'FP', 'FN', 'tomorrow_date', 'monitored_uid', 'contingency_uid', 'num_points', 'rating', 'orig_rating', 'observed_RT_shadow_price', 'forecast_RT_shadow_price']].values.tolist():
         i[0] = counter
         counter += 1
         collected_results[date_of_forecast].append(tuple(i))
     
 percent_of_ratings.append(-1)
 print(' ')
-print(f'Percent of unidentified constraints: {(100 * unidentified_constraint_counter / (identified_constraint_counter + unidentified_constraint_counter)):.1f}%')
-print(f'Percent of unidentified RT shadow price: {(100 * unidentified_RT_shadow_price / (identified_RT_shadow_price + unidentified_RT_shadow_price)):.1f}%')
+print(f'Total RT shadow price for which both MUSE and Forecast did not reach {100 * min(percent_of_ratings[:-1])}% Rating: ${unidentified_RT_shadow_price:.2f}')
+print(f'Percent of constraints both MUSE and Forecast did not reach {100 * min(percent_of_ratings[:-1])}% Rating: {(100 * unidentified_constraint_counter / (identified_constraint_counter + unidentified_constraint_counter)):.1f}%')
+print(f'The RT shadow price associated with it: {(100 * unidentified_RT_shadow_price / (identified_RT_shadow_price + unidentified_RT_shadow_price)):.1f}%')
 print(' ')
+
 i=0
 for date_of_forecast in collected_results:
-    for counter, false_positive, false_negative, TP, FP, FN, tomorrow_date, monitored_uid, contingency_uid, num_points, rating, orig_rating, observed_RT_shadow_price in collected_results[date_of_forecast]:
-        new_row = {'index':counter, 'FP_for_chart': false_positive, 'FN_for_chart': false_negative, 'TP': TP, 'FP': FP, 'FN': FN, 'Date': tomorrow_date, 'Monitored_uid': monitored_uid, 'Contingency_uid': contingency_uid, 'Num Hours': num_points, 'Rating': rating, 'orig_rating': orig_rating, 'observed_RT_shadow_price':observed_RT_shadow_price}
+    for counter, false_positive, false_negative, TP, FP, FN, tomorrow_date, monitored_uid, contingency_uid, num_points, rating, orig_rating, observed_RT_shadow_price, forecast_RT_shadow_price in collected_results[date_of_forecast]:
+        new_row = {'index':counter, 'FP_for_chart': false_positive, 'FN_for_chart': false_negative, 'TP': TP, 'FP': FP, 'FN': FN, 'Date': tomorrow_date, 'Monitored_uid': monitored_uid, 'Contingency_uid': contingency_uid, 'Num Hours': num_points, 'Rating': rating, 'orig_rating': orig_rating, 'observed_RT_shadow_price':observed_RT_shadow_price, 'forecast_RT_shadow_price':forecast_RT_shadow_price}
         weekly_info.loc[len(weekly_info)] = new_row
         
 # report on false positive and false negative
@@ -191,6 +195,11 @@ print(f'False Negative Cases: ({num_FN} in total)')
 print(weekly_info.query('Rating == -1 and FP_for_chart  == 0 and FN_for_chart == 1'))
 print(' ')
 print(f'Number of True Positive Cases: {num_TP}')
+print(' ')
+print(f'Total RT shadow price: ${weekly_info.observed_RT_shadow_price.sum()}')
+print(f'Total missed RT shadow price in FN days: ${weekly_info.query("Rating == -1 and FP_for_chart  == 0 and FN_for_chart == 1").observed_RT_shadow_price.sum():.2f}')
+print(f'Total "made-up" Forecast RT shadow price in FP days: ${weekly_info.query("Rating == -1 and FP_for_chart  == 1 and FN_for_chart == 0").forecast_RT_shadow_price.sum():.2f}')
+print(' ')
 
 print(' ')
 print('Confusion_matrix:')
@@ -372,7 +381,9 @@ def create_plot(Radius_to_unify_points):
 
         i=0
         for date_of_forecast in collected_results:
-            for counter, false_positive, false_negative, TP, FP, FN, tomorrow_date, monitored_uid, contingency_uid, num_points, rating, orig_rating, observed_RT_shadow_price in collected_results[date_of_forecast]:
+            for counter, false_positive, false_negative, TP, FP, FN, tomorrow_date, monitored_uid, contingency_uid, num_points, rating, orig_rating, observed_RT_shadow_price, forecast_RT_shadow_price in collected_results[date_of_forecast]:
+                # if contingency_uid == 'MFOWLOB5' and date_of_forecast == '2024-05-01':
+                #     print(18)
                 if rating != percent_of_rating:
                     continue
                 Counters.append(counter)
