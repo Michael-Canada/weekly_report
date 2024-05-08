@@ -172,10 +172,11 @@ for date_of_forecast in collected_results:
         collected_results[date_of_forecast].append(tuple(i))
     
 percent_of_ratings.append(-1)
-print(' ')
-print(f'Total RT shadow price for which both MUSE and Forecast did not reach {100 * min(percent_of_ratings[:-1])}% Rating: ${unidentified_RT_shadow_price:,.2f}')
-print(f'Percent of constraints both MUSE and Forecast did not reach {100 * min(percent_of_ratings[:-1])}% Rating: {(100 * unidentified_constraint_counter / (identified_constraint_counter + unidentified_constraint_counter)):,.1f}%')
-print(f'The RT shadow price associated with it: {(100 * unidentified_RT_shadow_price / (identified_RT_shadow_price + unidentified_RT_shadow_price)):,.1f}%')
+if False:
+    print(' ')
+    print(f'OBSOLETE: this is not calculated anymore. Total RT shadow price for which both MUSE and Forecast did not reach {100 * min(percent_of_ratings[:-1])}% Rating: ${unidentified_RT_shadow_price:,.2f}')
+    print(f'OBSOLETE: this is not calculated anymore. Percent of constraints both MUSE and Forecast did not reach {100 * min(percent_of_ratings[:-1])}% Rating: {(100 * unidentified_constraint_counter / (identified_constraint_counter + unidentified_constraint_counter)):,.1f}%')
+    print(f'OBSOLETE: this is not calculated anymore. The RT shadow price associated with it: {(100 * unidentified_RT_shadow_price / (identified_RT_shadow_price + unidentified_RT_shadow_price)):,.1f}%')
 print(' ')
 
 i=0
@@ -191,7 +192,7 @@ num_total_cases = len(weekly_info.query('Rating == -1'))
 num_TP = num_total_cases - num_FP - num_FN
 print('MUSE fails on these PROBLEMATIC CONSTRAINTS:')
 print(f'False Positive Cases where RT shadow prices = 0 but the Forecast is above the Rating: ({num_FP} in total)')
-print(f'Total "made-up" Forecast RT shadow price in FP days: ${weekly_info.query("Rating == -1 and FP_for_chart  == 1 and FN_for_chart == 0").forecast_RT_shadow_price.sum():,.2f}')
+print(f'Total "made-up" Forecast RT shadow price in FP days: ${weekly_info.query("Rating == -1 and forecast_RT_shadow_price > 0 and observed_RT_shadow_price == 0").forecast_RT_shadow_price.sum():,.2f}')
 print(weekly_info.query('Rating == -1 and FP_for_chart  == 1 and FN_for_chart == 0'))
 print(' ')
 print('MUSE fails on these PROBLEMATIC CONSTRAINTS:')
@@ -217,14 +218,26 @@ print(f'Rows with high ACTUAL RT shadow price but low FORECAST RT shadow price:'
 print(min_forecast_minus_observed_RT_shadow_price)
 print(' ')
 print(f'Total observed_RT_shadow_price: ${weekly_info.query("Rating == -1").observed_RT_shadow_price.sum():,.2f}')
+# passed_on_RT_shadow_price = weekly_info.query("Rating == -1 and observed_RT_shadow_price > 0 and forecast_RT_shadow_price == 0").observed_RT_shadow_price.sum()  # do not use it. It is good only for 100% rating, but not for cases of X% of Rating
+passed_on_RT_shadow_price = weekly_info.query("Rating == -1 and FP_for_chart  == 0 and FN_for_chart == 1").observed_RT_shadow_price.sum()
+print(f'--> Total observed_RT_shadow_price in days that were passed on by the forecast (=false negative events): ${passed_on_RT_shadow_price:,.2f} out of ${weekly_info.query("Rating == -1").observed_RT_shadow_price.sum():,.2f}')
+print(' ')
 print(f'Total forecast_RT_shadow_price: ${weekly_info.query("Rating == -1").forecast_RT_shadow_price.sum():,.2f}')
-
+made_up_shadow_price = weekly_info.query("Rating == -1 and forecast_RT_shadow_price > 0 and observed_RT_shadow_price == 0").forecast_RT_shadow_price.sum()
+print(f'--> Total forecast_RT_shadow_price in days that the Forecast predicted congestion, but actual RT shadow price was 0 the whole day (=false positive events): ${made_up_shadow_price:,.2f} out of ${weekly_info.query("Rating == -1").forecast_RT_shadow_price.sum():,.2f}')
+print(' ')
+diff_10PM_4AM = made_up_shadow_price - weekly_info.query("Rating == -1 and FP_for_chart  == 1 and FN_for_chart == 0").forecast_RT_shadow_price.sum()
+print(f'--> Measure of instability: This is the $ ammount that the forecast for RT shadow price changed between 4AM and 10PM the day before: ${diff_10PM_4AM:,.2f}')
 print(' ')
 
 print('Confusion_matrix:')
 print(f'FP: {100 * num_FP/num_total_cases:.1f}, FN: {100 * num_FN/num_total_cases:.1f}, TP: {100 * num_TP/num_total_cases:.1f}')
-print('     ')
-
+print(' ')
+percent_events_ignored = 100 * num_FN / (num_TP + num_FN)
+percent_events_detected = 100 * num_TP / (num_TP + num_FN)
+print(f'--> Ignoring "made-up" forecast RT shadow price, the % of real daily events that were ignored by Forecast is {percent_events_ignored:.0f}%')
+print(f'--> Ignoring "made-up" forecast RT shadow price, the % of real daily events that were detected by Forecast is {percent_events_detected:.0f}%')
+print(' ')
 plot_confusion_matrix(num_TP/num_total_cases, num_FP/num_total_cases, num_FN/num_total_cases)
 
 def save_historica_printout_results(df):
