@@ -26,6 +26,7 @@ import os
 from scipy.interpolate import griddata
 import copy
 from create_confusion_matirx import plot_confusion_matrix
+from create_FN_FP_RT_shadow_price import plot_FN_FP_RT_shadow_price
 from scipy.stats import norm
 
 # list of hyperparameters
@@ -35,8 +36,8 @@ to_date = datetime.datetime.now().strftime('%Y-%m-%d')
 
 today_date = datetime.datetime.now().strftime('%Y-%m-%d')
 # today_date = '2024-04-20'
-# today_date = '2024-04-29'
-data_to_save = pickle.load(open(f'weekly_report_as_of_{today_date}.pkl', 'rb'))
+today_date = '2024-05-07'
+data_to_save = pickle.load(open(f'weekly_report_saved_data_as_of_{today_date}.pkl', 'rb'))
 collected_results_orig = data_to_save['collected_results']
 percent_of_ratings = data_to_save['percent_of_ratings']
 RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig = data_to_save['RT_bindings_NOT_caught_by_MUSE_and_FORECAST']
@@ -172,9 +173,9 @@ for date_of_forecast in collected_results:
     
 percent_of_ratings.append(-1)
 print(' ')
-print(f'Total RT shadow price for which both MUSE and Forecast did not reach {100 * min(percent_of_ratings[:-1])}% Rating: ${unidentified_RT_shadow_price:.2f}')
-print(f'Percent of constraints both MUSE and Forecast did not reach {100 * min(percent_of_ratings[:-1])}% Rating: {(100 * unidentified_constraint_counter / (identified_constraint_counter + unidentified_constraint_counter)):.1f}%')
-print(f'The RT shadow price associated with it: {(100 * unidentified_RT_shadow_price / (identified_RT_shadow_price + unidentified_RT_shadow_price)):.1f}%')
+print(f'Total RT shadow price for which both MUSE and Forecast did not reach {100 * min(percent_of_ratings[:-1])}% Rating: ${unidentified_RT_shadow_price:,.2f}')
+print(f'Percent of constraints both MUSE and Forecast did not reach {100 * min(percent_of_ratings[:-1])}% Rating: {(100 * unidentified_constraint_counter / (identified_constraint_counter + unidentified_constraint_counter)):,.1f}%')
+print(f'The RT shadow price associated with it: {(100 * unidentified_RT_shadow_price / (identified_RT_shadow_price + unidentified_RT_shadow_price)):,.1f}%')
 print(' ')
 
 i=0
@@ -188,20 +189,38 @@ num_FP = len(weekly_info.query('Rating == -1 and FP_for_chart  == 1 and FN_for_c
 num_FN = len(weekly_info.query('Rating == -1 and FP_for_chart  == 0 and FN_for_chart == 1'))
 num_total_cases = len(weekly_info.query('Rating == -1'))
 num_TP = num_total_cases - num_FP - num_FN
-print(f'False Positive Cases: ({num_FP} in total)')
+print('MUSE fails on these PROBLEMATIC CONSTRAINTS:')
+print(f'False Positive Cases where RT shadow prices = 0 but the Forecast is above the Rating: ({num_FP} in total)')
+print(f'Total "made-up" Forecast RT shadow price in FP days: ${weekly_info.query("Rating == -1 and FP_for_chart  == 1 and FN_for_chart == 0").forecast_RT_shadow_price.sum():,.2f}')
 print(weekly_info.query('Rating == -1 and FP_for_chart  == 1 and FN_for_chart == 0'))
 print(' ')
-print(f'False Negative Cases: ({num_FN} in total)')
+print('MUSE fails on these PROBLEMATIC CONSTRAINTS:')
+print(f"False Negative Cases, where actual RT shadow price > 0 but Forecast is less than {100 * min(percent_of_ratings[:-1]):.0f}% of the Rating: ({num_FN} in total)")
+print(f'Total missed RT shadow price in FN days: ${weekly_info.query("Rating == -1 and FP_for_chart  == 0 and FN_for_chart == 1").observed_RT_shadow_price.sum():,.2f}')
 print(weekly_info.query('Rating == -1 and FP_for_chart  == 0 and FN_for_chart == 1'))
-print(' ')
-print(f'Number of True Positive Cases: {num_TP}')
-print(' ')
-print(f'Total RT shadow price: ${weekly_info.observed_RT_shadow_price.sum()}')
-print(f'Total missed RT shadow price in FN days: ${weekly_info.query("Rating == -1 and FP_for_chart  == 0 and FN_for_chart == 1").observed_RT_shadow_price.sum():.2f}')
-print(f'Total "made-up" Forecast RT shadow price in FP days: ${weekly_info.query("Rating == -1 and FP_for_chart  == 1 and FN_for_chart == 0").forecast_RT_shadow_price.sum():.2f}')
-print(' ')
 
 print(' ')
+
+plot_FN_FP_RT_shadow_price(weekly_info.sort_values('forecast_RT_shadow_price', ascending=False).query('Rating == -1')['forecast_RT_shadow_price'].values, 
+                           weekly_info.sort_values('forecast_RT_shadow_price', ascending=False).query('Rating == -1')['observed_RT_shadow_price'].values)
+
+# find the 10 rows in weekly_info where the rating is -1 and the difference between forecast_RT_shadow_price and observed_RT_shadow_price is maximal
+weekly_info['difference'] = weekly_info.query('Rating == -1')['forecast_RT_shadow_price'] - weekly_info.query('Rating == -1')['observed_RT_shadow_price']
+max_forecast_minus_observed_RT_shadow_price = weekly_info.sort_values('difference', ascending=False).query('difference > 3000 and observed_RT_shadow_price < 1')
+min_forecast_minus_observed_RT_shadow_price = weekly_info.sort_values('difference').query('difference < -3000 and forecast_RT_shadow_price < 1')
+weekly_info = weekly_info.drop('difference', axis=1)
+print(' ')
+print(f'Rows with high FORECAST RT shadow price but low ACTUAL RT shadow price:')
+print(max_forecast_minus_observed_RT_shadow_price)
+print(' ')
+print(f'Rows with high ACTUAL RT shadow price but low FORECAST RT shadow price:')
+print(min_forecast_minus_observed_RT_shadow_price)
+print(' ')
+print(f'Total observed_RT_shadow_price: ${weekly_info.query("Rating == -1").observed_RT_shadow_price.sum():,.2f}')
+print(f'Total forecast_RT_shadow_price: ${weekly_info.query("Rating == -1").forecast_RT_shadow_price.sum():,.2f}')
+
+print(' ')
+
 print('Confusion_matrix:')
 print(f'FP: {100 * num_FP/num_total_cases:.1f}, FN: {100 * num_FN/num_total_cases:.1f}, TP: {100 * num_TP/num_total_cases:.1f}')
 print('     ')
@@ -232,7 +251,7 @@ def save_historica_printout_results(df):
         file.flush() 
         os.fsync(file.fileno()) 
     # Replace the original file with the new file 
-    original_file_name = "histogram_printout_collection.pkl" 
+    original_file_name = "histogram_printout_collection_NEW.pkl" 
     os.replace(new_file_name, original_file_name) 
     
     print("Data saved successfully.")
@@ -340,7 +359,7 @@ weekly_info['TP_for_chart'] = 1 - (weekly_info['FP_for_chart'] + weekly_info['FN
 
 # Load the dictionary from the file 
 try: 
-    with open("histogram_printout_collection.pkl", "rb") as file: 
+    with open("histogram_printout_collection_NEW.pkl", "rb") as file: 
         past_histogram_printout_collection = pickle.load(file) 
 except FileNotFoundError: 
     past_histogram_printout_collection = [] 

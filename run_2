@@ -26,7 +26,7 @@ import os
 
 # list of hyperparameters
 max_num_congestions_per_day = 30  #30
-Num_of_days_to_look_back = 27  #25
+Num_of_days_to_look_back = 25  #25
 percent_of_ratings = [0.99, 0.95, 0.9, 0.85, 0.8]
 # percent_of_ratings = [0.99]
 print(18)
@@ -138,8 +138,8 @@ for as_of in tqdm(as_ofs_actual):
     df_actual_one = process_actual(content)
     contents_actual[as_of.as_of_str] = df_actual_one
 
-    # url_FP = f"https://api1.marginalunit.com/pr-forecast/ercot/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T22%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100_iir"
-    url_FP = f"https://api1.marginalunit.com/pr-forecast/ercot/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T04%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100_iir"
+    url_FP = f"https://api1.marginalunit.com/pr-forecast/ercot/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T22%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100_iir"
+    # url_FP = f"https://api1.marginalunit.com/pr-forecast/ercot/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T04%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100_iir"
 
     content_FP = _get_dfm(url_FP)
     if content_FP is None:
@@ -238,8 +238,8 @@ for as_of in tqdm(as_ofs_actual):
     RT_bindings_NOT_caught_by_MUSE_and_FORECAST[tomorrow_date] = []
 
     print(f'working on {tomorrow_date}')
-    for monitored_uid, contingency_uid  in top_contingencies.index:
-        # if not (contingency_uid == 'XNED89' and tomorrow_date == '2024-04-12'):
+    for monitored_uid, contingency_uid  in top_contingencies.index: 
+        # if not (contingency_uid == 'DNORSD85' and tomorrow_date == '2024-05-01'):
         #     continue
 
         # if not 'SSHKCRI8' == contingency_uid:
@@ -338,31 +338,53 @@ for as_of in tqdm(as_ofs_actual):
             if (all(FORECAST_constraint_flow_tomorrow['constraint_flow'] <= 10) is False) and (all(FORECAST_constraint_flow_tomorrow['constraint_flow'] > 10) is False):   #this is not a number!
                 break
 
+            if len(contents_forecast[tomorrow_date].query('monitored_uid == @monitored_uid and contingency_uid == @contingency_uid')) > 0:
+                Forecast_RT_shadow_prices = contents_forecast[tomorrow_date].query('monitored_uid == @monitored_uid and contingency_uid == @contingency_uid')
+                # Forecast_RT_shadow_prices represents 24 hours of a day. However, in the timestamp there may be only some of the 24 hours. Wherever Forecast_RT_shadow_prices' timestamp does not exist we have to add shadow price = 0:
+                # Forecast_RT_shadow_prices['timestamp'] = pd.to_datetime(Forecast_RT_shadow_prices['timestamp'])
+                Forecast_RT_shadow_prices.loc[:, 'timestamp'] = pd.to_datetime(Forecast_RT_shadow_prices['timestamp'])
+                # Forecast_RT_shadow_prices['timestamp'] = Forecast_RT_shadow_prices['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                Forecast_RT_shadow_prices.loc[:, 'timestamp'] = Forecast_RT_shadow_prices['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                # Forecast_RT_shadow_prices['timestamp'] = pd.to_datetime(Forecast_RT_shadow_prices['timestamp'])
+                Forecast_RT_shadow_prices.loc[:, 'timestamp'] = pd.to_datetime(Forecast_RT_shadow_prices['timestamp'])
+                Forecast_RT_shadow_prices = pd.merge(all_hours_df, Forecast_RT_shadow_prices, left_on='period', right_on='timestamp', how='left').sort_values('period')
+                Forecast_RT_shadow_prices[Forecast_RT_shadow_prices['shadow_price'].isnull()] = 0
+                Forecast_RT_shadow_prices_array = Forecast_RT_shadow_prices.shadow_price.values
+            else:
+                Forecast_RT_shadow_prices_array = np.zeros(24)
+
             # Compare prices and ratings 
             used_rating = percent_of_rating * FORECAST_constraint_flow_tomorrow['rating']
-            # conf_matrix.TP = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] >= used_rating)  ) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating)).sum()
-            conf_matrix.FN = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] >= used_rating)  ) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] <= used_rating)).sum()
-            # conf_matrix.FP = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] <= used_rating)  ) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating)).sum()
-            conf_matrix.TP = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] >= used_rating)  |  (RT_data_for_this_date['shadow_price'] > 0)) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating)).sum()
-            # conf_matrix.FN = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] >= used_rating)  |  (RT_data_for_this_date['shadow_price'] > 0)) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] <= used_rating)).sum()
-            conf_matrix.FP = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] <= used_rating)  & (RT_data_for_this_date['shadow_price'] == 0)) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating)).sum()
+            # conf_matrix.FN = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] >= used_rating)  ) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] <= used_rating)).sum()
+            # conf_matrix.TP = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] >= used_rating)  |  (RT_data_for_this_date['shadow_price'] > 0)) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating)).sum()
+            # conf_matrix.FP = ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] <= used_rating)  & (RT_data_for_this_date['shadow_price'] == 0)) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating)).sum()
+            conf_matrix.FN = (  (RT_data_for_this_date['shadow_price'] > 0)  & (FORECAST_constraint_flow_tomorrow['constraint_flow'] < used_rating) & (Forecast_RT_shadow_prices_array == 0)).sum()   
+            ### conf_matrix.FN += (  (RT_data_for_this_date['shadow_price'] == 0)  & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating) | (Forecast_RT_shadow_prices_array > 0)).sum()
+            conf_matrix.TP = (    (RT_data_for_this_date['shadow_price'] > 0) & ((FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating) | (Forecast_RT_shadow_prices_array > 0) )).sum()
+            conf_matrix.FP = (  ((RT_data_for_this_date['shadow_price'] == 0)) & ( (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= FORECAST_constraint_flow_tomorrow['rating']) | (Forecast_RT_shadow_prices_array > 0) ) ).sum()
+
+            
+
 
             # find the shadow price based on top_contingencies[(monitored_uid, contingency_uid)]:
             obsered_RT_shadow_price = top_contingencies.loc[(monitored_uid, contingency_uid)].shadow_price
             forecast_RT_shadow_price = top_contingencies.loc[(monitored_uid, contingency_uid)].forecast_shadow_price
 
-            #if this case had RT shadow price > 0 but the forecast was under the used_rating then this is also a FN case
-            if conf_matrix.FN + conf_matrix.TP + conf_matrix.FP == 0:
-                RT_bindings_NOT_caught_by_MUSE_and_FORECAST[tomorrow_date].append((tomorrow_date, monitored_uid, contingency_uid, percent_of_rating, percent_of_rating, obsered_RT_shadow_price))
-                conf_matrix.FN += ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] <= used_rating) & (RT_data_for_this_date['shadow_price'] > 0)  ) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] <= used_rating)).sum()                
+            ans, constraint_data = calc_collected_confusion_metrics(conf_matrix, tomorrow_date, monitored_uid, contingency_uid, percent_of_rating, percent_of_rating, obsered_RT_shadow_price, forecast_RT_shadow_price)
+            collected_results[tomorrow_date].append(constraint_data)
+                
+            # #if this case had RT shadow price > 0 but the forecast was under the used_rating then this is also a FN case
+            # if conf_matrix.FN + conf_matrix.TP + conf_matrix.FP == 0:
+            #     RT_bindings_NOT_caught_by_MUSE_and_FORECAST[tomorrow_date].append((tomorrow_date, monitored_uid, contingency_uid, percent_of_rating, percent_of_rating, obsered_RT_shadow_price))
+            #     conf_matrix.FN += ((  (MUSE_constraint_flow_tomorrow['constraint_flow'] <= used_rating) & (RT_data_for_this_date['shadow_price'] > 0)  ) & (FORECAST_constraint_flow_tomorrow['constraint_flow'] <= used_rating)).sum()                
             
-            else:
-                ans, constraint_data = calc_collected_confusion_metrics(conf_matrix, tomorrow_date, monitored_uid, contingency_uid, percent_of_rating, percent_of_rating, obsered_RT_shadow_price, forecast_RT_shadow_price)
-                collected_results[tomorrow_date].append(constraint_data)
+            # else:
+            #     ans, constraint_data = calc_collected_confusion_metrics(conf_matrix, tomorrow_date, monitored_uid, contingency_uid, percent_of_rating, percent_of_rating, obsered_RT_shadow_price, forecast_RT_shadow_price)
+            #     collected_results[tomorrow_date].append(constraint_data)
             
 data_to_save = {'collected_results': collected_results, 'RT_bindings_NOT_caught_by_MUSE_and_FORECAST': RT_bindings_NOT_caught_by_MUSE_and_FORECAST, 'percent_of_ratings': percent_of_ratings}
 today_date = datetime.datetime.now().strftime('%Y-%m-%d')
-with open(f'weekly_report_as_of_{today_date}.pkl', 'wb') as f:
+with open(f'weekly_report_saved_data_as_of_{today_date}.pkl', 'wb') as f:
     pickle.dump(data_to_save, f)
     f.flush() 
     os.fsync(f.fileno())
