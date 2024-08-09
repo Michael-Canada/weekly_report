@@ -1,6 +1,8 @@
 # weekly_report
 This repo generates the quantitative part of the weekly report, analysing the performance of constraint forecasting.
 
+Important: Install the environment.yml, and not any other .yml file that may exist.
+
 To run on MISO:
 1. Run the file: Run_MISO.py   (running requires about 20 minutes)
 2. Open the file Run_analysis_MISO.py
