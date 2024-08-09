@@ -38,10 +38,8 @@ today_date = datetime.datetime.now().strftime('%Y-%m-%d')
 # today_date = '2024-05-07'
 # today_date = '2024-05-17'
 # today_date = '2024-05-30'
-# today_date = '2024-06-06'
-# today_date = '2024-06-14'
-# today_date = '2024-07-28'
-data_to_save = pickle.load(open(f'weekly_report_saved_data_as_of_{today_date}.pkl', 'rb'))
+# today_date = '2024-07-10'
+data_to_save = pickle.load(open(f'weekly_report_saved_data_SPP_as_of_{today_date}.pkl', 'rb'))
 collected_results_orig = data_to_save['collected_results']
 percent_of_ratings = data_to_save['percent_of_ratings']
 RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig = data_to_save['RT_bindings_NOT_caught_by_MUSE_and_FORECAST']
@@ -63,12 +61,19 @@ for date in collected_results_orig:
     # if date > '2024-05-30' and date <= '2024-06-06':
     # if date > '2024-06-06' and date <= '2024-06-14':
     # if date > '2024-06-14' and date <= '2024-06-21':
+    # if date > '2024-06-21' and date <= '2024-06-28':
+    # if date > '2024-06-28' and date <= '2024-07-05':
+    # if date > '2024-07-04' and date <= '2024-07-15':
+    # if date > '2024-07-17' and date <= '2024-07-25':
+    # if date > '2024-07-03' and date <= '2024-07-25':
     # if date > '2024-07-02' and date <= '2024-07-09':
-    # if date > '2024-07-09' and date <= '2024-07-18':
-    # if date > '2024-07-19' and date <= '2024-07-28':
+    # if date > '2024-07-10' and date <= '2024-07-17':
+    # if date > '2024-07-22' and date <= '2024-07-29':
+    # if date > '2024-07-15' and date <= '2024-07-22':
+    # if date > '2024-07-08' and date <= '2024-07-15':
     if date > '2024-08-01' and date <= '2024-08-08':
-        
-        collected_results[date] = collected_results_orig[date]
+        if collected_results_orig[date]:
+            collected_results[date] = collected_results_orig[date]
         
 for date in RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig:
     # choose the right week:
@@ -84,11 +89,18 @@ for date in RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig:
     # if date > '2024-05-30' and date <= '2024-06-06':
     # if date > '2024-06-06' and date <= '2024-06-14':
     # if date > '2024-06-14' and date <= '2024-06-21':
+    # if date > '2024-06-14' and date <= '2024-06-21':
+    # if date > '2024-06-21' and date <= '2024-06-28':
+    # if date > '2024-06-28' and date <= '2024-07-05':
+    # if date > '2024-07-04' and date <= '2024-07-15':
+    # if date > '2024-07-17' and date <= '2024-07-25':
+    # if date > '2024-07-03' and date <= '2024-07-25':
     # if date > '2024-07-02' and date <= '2024-07-09':
-    # if date > '2024-07-09' and date <= '2024-07-18':
-    # if date > '2024-07-19' and date <= '2024-07-28':
+    # if date > '2024-07-10' and date <= '2024-07-17':
+    # if date > '2024-07-22' and date <= '2024-07-29':
+    # if date > '2024-07-15' and date <= '2024-07-22':
+    # if date > '2024-07-08' and date <= '2024-07-15':
     if date > '2024-08-01' and date <= '2024-08-08':
-
         RT_bindings_NOT_caught_by_MUSE_and_FORECAST[date] = RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig[date]
 
 
@@ -231,21 +243,10 @@ print(weekly_info.query('Rating == -1 and FP_for_chart  == 0 and FN_for_chart ==
 print(' ')
 
 plot_FN_FP_RT_shadow_price(weekly_info.sort_values('forecast_RT_shadow_price', ascending=False).query('Rating == -1')['forecast_RT_shadow_price'].values, 
-                           weekly_info.sort_values('forecast_RT_shadow_price', ascending=False).query('Rating == -1')['observed_RT_shadow_price'].values,
-                           range=[-10, 10, -10000, 270000])
-
-plot_FN_FP_RT_shadow_price(weekly_info.sort_values(['forecast_RT_shadow_price', 'observed_RT_shadow_price'], ascending=[True, False]).query('Rating == -1')['forecast_RT_shadow_price'].values, 
-                           weekly_info.sort_values(['forecast_RT_shadow_price', 'observed_RT_shadow_price'], ascending=[True, False]).query('Rating == -1')['observed_RT_shadow_price'].values,
-                           range=[-10, 100, -10000, 160000])
+                           weekly_info.sort_values('forecast_RT_shadow_price', ascending=False).query('Rating == -1')['observed_RT_shadow_price'].values)
 
 plot_FN_FP_RT_shadow_price(weekly_info.sort_values('observed_RT_shadow_price', ascending=False).query('Rating == -1')['forecast_RT_shadow_price'].values, 
-                           weekly_info.sort_values('observed_RT_shadow_price', ascending=False).query('Rating == -1')['observed_RT_shadow_price'].values,
-                           range=[-10, 10, -10000, 120000])
-
-plot_FN_FP_RT_shadow_price(weekly_info.sort_values(['observed_RT_shadow_price', 'forecast_RT_shadow_price'], ascending=[True, False]).query('Rating == -1')['forecast_RT_shadow_price'].values, 
-                           weekly_info.sort_values(['observed_RT_shadow_price', 'forecast_RT_shadow_price'], ascending=[True, False]).query('Rating == -1')['observed_RT_shadow_price'].values,
-                           range=[-10, 100, -10000, 300000])
-
+                           weekly_info.sort_values('observed_RT_shadow_price', ascending=False).query('Rating == -1')['observed_RT_shadow_price'].values)
 
 # find the 10 rows in weekly_info where the rating is -1 and the difference between forecast_RT_shadow_price and observed_RT_shadow_price is maximal
 weekly_info['difference'] = weekly_info.query('Rating == -1')['forecast_RT_shadow_price'] - weekly_info.query('Rating == -1')['observed_RT_shadow_price']
@@ -294,7 +295,7 @@ def save_historica_printout_results(df_historic_actual, df_historic_FP):
         file.flush() 
         os.fsync(file.fileno()) 
     # Replace the original file with the new file 
-    original_file_name = "histogram_printout_collection_NEW.pkl" 
+    original_file_name = "histogram_printout_collection_SPP_NEW.pkl" 
     os.replace(new_file_name, original_file_name) 
     
     print("Data saved successfully.")
@@ -370,81 +371,27 @@ def weight_on_average_RT_shadow_prices_per_day(i, percent_of_rating):
 collection_of_criteria = [weight_on_num_of_days_in_the_blob, weight_on_number_of_hours_in_the_blob, weight_on_num_of_active_hours_per_day, weight_on_total_RT_shadow_price, weight_on_average_RT_shadow_prices_per_day]
 
 # def on_click(event, daily_confusion_FP=daily_confusion_FP, daily_confusion_FN=daily_confusion_FN, num_of_points=num_of_points, radius_for_points=radius_for_points): 
-# def on_click(event):
-#     if event.button == 1:         # Left mouse button 
-#         for i in range(len(daily_confusion_FP)): 
-#             circle = Circle((np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i])), radius=radius_for_points[i]) 
-#             if circle.contains_point((event.xdata, event.ydata)):
-#                 print(' ')
-#                 num_of_days = len(weekly_info.query('index in @point_ind[@i]'))
-#                 print(f" Number of days: {num_of_days}")
-#                 print(f" Total (and average) number of hours: {num_of_points[i]}, ({num_of_points[i] / num_of_days}:.2f)")
-#                 total_RT_shadow_price = weekly_info.query('index in @point_ind[@i]').observed_RT_shadow_price.sum()
-#                 print(f" Total (and average) RT shadow price: {total_RT_shadow_price} ({total_RT_shadow_price / num_of_days}:.2f)")
-#                 print(f" False Positive: {daily_confusion_FP[i]}") 
-#                 print(f" False Negative: {daily_confusion_FN[i]}")
-
-#                 print(weekly_info.query('index in @point_ind[@i]'))
-#                 # print(weekly_info.query('index in @point_ind[@i]')[['TP_for_chart', 'Monitored_uid', 'Contingency_uid', 'Num Hours', 'observed_RT_shadow_price']])
-#                 # print(weekly_info.query('index in @point_ind[@i]')[['TP_for_chart', 'Monitored_uid', 'Contingency_uid', 'Date', 'forecast_RT_shadow_price']])
-#                 print(' ')
-#                 break
-
-
-# def on_click(event):
-#     if event.button == 1:  # Left mouse button
-#         for i in range(len(daily_confusion_FP)):
-#             circle = Circle((np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i])), radius=radius_for_points[i])
-#             if circle.contains_point((event.xdata, event.ydata)):
-#                 print(' ')
-#                 filtered_weekly_info = weekly_info.query('index in @point_ind[@i]')
-#                 num_of_days = len(filtered_weekly_info)
-#                 print(f" Number of days: {num_of_days}")
-#                 print(f" Total (and average) number of hours: {num_of_points[i]}, ({num_of_points[i] / num_of_days:.2f})")
-#                 total_RT_shadow_price = filtered_weekly_info.observed_RT_shadow_price.sum()
-#                 print(f" Total (and average) RT shadow price: {total_RT_shadow_price}, ({total_RT_shadow_price / num_of_days:.2f})")
-#                 print(f" False Positive: {daily_confusion_FP[i]}")
-#                 print(f" False Negative: {daily_confusion_FN[i]}")
-
-#                 # Order by 'Contingency_uid', then by 'observed_RT_shadow_price', then by 'forecast_RT_shadow_price'
-#                 ordered_info = filtered_weekly_info.sort_values(by=['Contingency_uid', 'observed_RT_shadow_price', 'forecast_RT_shadow_price'])
-#                 print(ordered_info)
-#                 print(' ')
-#                 break
-
 def on_click(event):
-    if event.button == 1:  # Left mouse button
-        for i in range(len(daily_confusion_FP)):
-            circle = Circle((np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i])), radius=radius_for_points[i])
+    if event.button == 1:         # Left mouse button 
+        for i in range(len(daily_confusion_FP)): 
+            circle = Circle((np.sqrt(daily_confusion_FP[i]), np.sqrt(daily_confusion_FN[i])), radius=radius_for_points[i]) 
             if circle.contains_point((event.xdata, event.ydata)):
-                print('\n')
-                filtered_weekly_info = weekly_info.query('index in @point_ind[@i]')
-                num_of_days = len(filtered_weekly_info)
-                print(f"Number of days: {num_of_days}")
-                print(f"Total (and average) number of hours: {num_of_points[i]}, ({num_of_points[i] / num_of_days:.2f})")
-                total_RT_shadow_price = filtered_weekly_info.observed_RT_shadow_price.sum()
-                print(f"Total (and average) RT shadow price: {total_RT_shadow_price}, ({total_RT_shadow_price / num_of_days:.2f})")
-                print(f"False Positive: {daily_confusion_FP[i]}")
-                print(f"False Negative: {daily_confusion_FN[i]}")
+                print(' ')
+                num_of_days = len(weekly_info.query('index in @point_ind[@i]'))
+                print(f" Number of days: {num_of_days}")
+                print(f" Total (and average) number of hours: {num_of_points[i]}, ({num_of_points[i] / num_of_days}:.2f)")
+                total_RT_shadow_price = weekly_info.query('index in @point_ind[@i]').observed_RT_shadow_price.sum()
+                print(f" Total (and average) RT shadow price: {total_RT_shadow_price} ({total_RT_shadow_price / num_of_days}:.2f)")
+                print(f" False Positive: {daily_confusion_FP[i]}") 
+                print(f" False Negative: {daily_confusion_FN[i]}")
 
-                # Group by 'Contingency_uid', then sort within each group by 'observed_RT_shadow_price' and 'forecast_RT_shadow_price' in descending order
-                # Finally, sort the groups by the sum of 'observed_RT_shadow_price' within each group, in descending order
-                grouped_info = filtered_weekly_info.groupby('Contingency_uid', as_index=False).apply(
-                    lambda x: x.sort_values(by=['observed_RT_shadow_price', 'forecast_RT_shadow_price'], ascending=False)
-                ).reset_index(drop=True)
-
-                # Calculate the sum of 'observed_RT_shadow_price' for each 'Contingency_uid' and sort the groups
-                sum_observed = filtered_weekly_info.groupby('Contingency_uid')['observed_RT_shadow_price'].sum().reset_index()
-                sum_observed_sorted = sum_observed.sort_values(by='observed_RT_shadow_price', ascending=False)
-
-                # Reorder 'grouped_info' based on the sorted order of 'Contingency_uid' in 'sum_observed_sorted'
-                ordered_info = pd.DataFrame()
-                for uid in sum_observed_sorted['Contingency_uid']:
-                    ordered_info = pd.concat([ordered_info, grouped_info[grouped_info['Contingency_uid'] == uid]])
-
-                print(ordered_info.to_string(index=False))
-                print('\n')
+                print(weekly_info.query('index in @point_ind[@i]'))
+                # print(weekly_info.query('index in @point_ind[@i]')[['TP_for_chart', 'Monitored_uid', 'Contingency_uid', 'Num Hours', 'observed_RT_shadow_price']])
+                # print(weekly_info.query('index in @point_ind[@i]')[['TP_for_chart', 'Monitored_uid', 'Contingency_uid', 'Date', 'forecast_RT_shadow_price']])
+                print(' ')
                 break
+
+
 
 weekly_info['TP_for_chart'] = 1 - (weekly_info['FP_for_chart'] + weekly_info['FN_for_chart'])
 # new_row = {'title':title, 'Rating': percent_of_rating, 'bin':this_bin, 'value':this_hist_value, 'date_begining':date_begining, 'date_ending':date_ending}
@@ -458,7 +405,7 @@ weekly_info['TP_for_chart'] = 1 - (weekly_info['FP_for_chart'] + weekly_info['FN
 
 # Load the dictionary from the file 
 try: 
-    with open("histogram_printout_collection_NEW.pkl", "rb") as file: 
+    with open("histogram_printout_collection_SPP_NEW.pkl", "rb") as file: 
         all_historic_printout_results = pickle.load(file)
         past_histogram_printout_collection = all_historic_printout_results['actual']
         FP_historic_collection = all_historic_printout_results['FP'] 
@@ -667,6 +614,9 @@ def create_plot(Radius_to_unify_points):
                 
                 hist_total_hours, _ = np.histogram([row['TP_for_chart'] for index, row in weekly_info.query('Rating == @percent_of_rating').iterrows()], bins=bins, weights=weekly_info.query('Rating == @percent_of_rating')['Num Hours'])
                 hist_num_days, _ = np.histogram([row['TP_for_chart'] for index, row in weekly_info.query('Rating == @percent_of_rating').iterrows()], bins=bins)
+                for ind,h in enumerate(hist_num_days):
+                    if h == 0:
+                        hist_num_days[ind] = 1
                 hist = hist_total_hours / hist_num_days
                 
                 

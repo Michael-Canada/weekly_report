@@ -23,12 +23,18 @@ from matplotlib.patches import Circle
 import numpy as np
 import os 
 
+USE_SNOWFLAKE = False
 
 # list of hyperparameters
 max_num_congestions_per_day = 30  #30
-Num_of_days_to_look_back = 11  #25
+Num_of_days_to_look_back = 19  #25
 percent_of_ratings = [0.99, 0.95, 0.9, 0.85, 0.8]
-# percent_of_ratings = [0.99, 0.8]
+
+# max_num_congestions_per_day = 10  #30
+# Num_of_days_to_look_back = 5  #9
+# # percent_of_ratings = [0.99, 0.95, 0.9, 0.85, 0.8]
+# percent_of_ratings = [0.99, .8]
+
 
 class ConfusionMatrix:
     def __init__(self):
@@ -94,7 +100,65 @@ def _get_dfm(url):
             resp.text
         )
 
-run = 'ercot'
+
+
+
+########################
+
+
+if True:
+        def _get_snowflake_auth():
+            return tuple(os.environ["SNOWFLAKE_AUTH"].split(":"))
+        import snowflake.connector as snowflake_connector
+        from snowflake.connector.connection import SnowflakeConnection
+        SNOWFLAKE_ACCOUNT = "enverus_pr.us-east-1"
+
+        def _get_cnx() -> SnowflakeConnection:
+            user, password = tuple(_get_snowflake_auth())
+
+            ctx = snowflake_connector.connect(
+                user=user,
+                password=password,
+                account=SNOWFLAKE_ACCOUNT,
+                insecure_mode=os.getenv("SNOWFLAKE_INSECURE_MODE") is not None,
+                warehouse='PLACEBO_MISC_WAREHOUSE',
+                role='SYSADMIN',
+            )
+
+            return ctx
+
+
+        cnx = _get_cnx()
+        cursor = cnx.cursor()
+
+        # Set the database and schema for the session
+        cursor.execute("SHOW DATABASES;")
+        # cursor.execute("USE DATABASE 'pr-forecast';")
+        # cursor.execute("USE SCHEMA 20240620T1855Z")
+
+        # query_binding_constraints_performance = """
+        # SELECT *
+        #     FROM "pr-forecast"."20240620T1855Z"."binding_constraint" 
+        #     WHERE HOUR(as_of) = 4
+        #     AND stream_uid = 'load_100_wind_100_sol_100_ng_100_iir'
+        #     AND contingency_uid = 'NSP34011'
+        #     order by as_of desc, TIMESTAMP desc
+
+        # """
+        # cursor.execute(query_binding_constraints_performance)
+        # df_binding_constraints_performance = snowflake_utils.execute_and_fetch(cnx, query_binding_constraints_performance)
+
+
+
+
+########################
+
+
+
+
+
+# run = 'ercot'
+run = 'miso'
 #the following line is to get the list of as_ofs
 content = api_utils.fetch_from_placebo(
         endpoint=f"{run}/as_ofs",
@@ -126,6 +190,7 @@ as_ofs_actual = [AsOf(as_of_str=as_of.as_of_str, as_of=date_utils.localized_from
 contents_actual = {}
 contents_forecast = {}
 
+
 for as_of in tqdm(as_ofs_actual):
     date = as_of.as_of.date() #zzz
     url = f"{CONSTRAINTDB_ROOT}/{run}/rt/binding_events?start_datetime={date.strftime('%Y-%m-%d')}&end_datetime={(datetime.timedelta(days=1)+date).strftime('%Y-%m-%d')}"
@@ -137,15 +202,35 @@ for as_of in tqdm(as_ofs_actual):
     df_actual_one = process_actual(content)
     contents_actual[as_of.as_of_str] = df_actual_one
 
-    url_FP = f"https://api1.marginalunit.com/pr-forecast/ercot/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T22%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100_iir"
-    # url_FP = f"https://api1.marginalunit.com/pr-forecast/ercot/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T04%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100_iir"
 
-    content_FP = _get_dfm(url_FP)
-    if content_FP is None:
-            print(f'Error 92837498234: no data')
-            print(url_FP)
+    if USE_SNOWFLAKE:
+        date_for_query = f"{date.strftime('%Y-%m-%d')} 04:00:00.000 -05:00"
+        query_binding_constraints_performance = f"""
+        SELECT *
+            FROM "pr-forecast"."20240620T1855Z"."binding_constraint" 
+            WHERE HOUR(as_of) = 4
+            AND stream_uid = 'load_100_wind_100_sol_100_ng_100_iir'
+            AND as_of = '{date_for_query}'
+            order by as_of desc, TIMESTAMP desc
 
-    df_bc_actual_FP = pd.read_csv(content_FP)
+        """
+        cursor.execute(query_binding_constraints_performance)
+        df_bc_actual_FP = snowflake_utils.execute_and_fetch(cnx, query_binding_constraints_performance)
+        df_bc_actual_FP = df_bc_actual_FP[df_bc_actual_FP['shadow_price'] > 0]
+        df_bc_actual_FP.reset_index(drop=True, inplace=True)
+
+    else:
+    
+        url_FP = f"https://api1.marginalunit.com/pr-forecast/{run}/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T04%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100_iir"
+        # url_FP = f"https://api1.marginalunit.com/pr-forecast/ercot/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T04%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100_iir"
+
+        content_FP = _get_dfm(url_FP)
+        if content_FP is None:
+                print(f'Error 92837498234: no data')
+                print(url_FP)
+
+        df_bc_actual_FP = pd.read_csv(content_FP)
+
     No_FP_data_was_found = False
     if len(df_bc_actual_FP) == 0:
         print('No forecast contingencies were found')
@@ -154,8 +239,14 @@ for as_of in tqdm(as_ofs_actual):
     if not No_FP_data_was_found:
         date_later_1 = f"{(datetime.timedelta(days=1)+date).strftime('%Y-%m-%d')}"
         date_later_2 = f"{(datetime.timedelta(days=2)+date).strftime('%Y-%m-%d')}"
-        # Forecast_RT_shadow_price_of_the_day = df_bc_actual_FP.query('timestamp > @date_later_1 and timestamp < @date_later_2').groupby(['contingency_uid','monitored_uid','timestamp']).agg({'shadow_price':sum})
-        Forecast_RT_shadow_price_of_the_day = df_bc_actual_FP.query('timestamp > @date_later_1 and timestamp < @date_later_2')
+            
+        if not USE_SNOWFLAKE:
+            # Forecast_RT_shadow_price_of_the_day = df_bc_actual_FP.query('timestamp > @date_later_1 and timestamp < @date_later_2').groupby(['contingency_uid','monitored_uid','timestamp']).agg({'shadow_price':sum})
+            Forecast_RT_shadow_price_of_the_day = df_bc_actual_FP.query('timestamp > @date_later_1 and timestamp < @date_later_2')
+        else:
+            #convert the timestamp to datetime
+            df_bc_actual_FP['timestamp'] = df_bc_actual_FP['timestamp'].apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S %Z')).apply(lambda x: x[:20])
+            Forecast_RT_shadow_price_of_the_day = df_bc_actual_FP.query('timestamp >= @date_later_1 and timestamp < @date_later_2')
 
         contents_forecast[date_later_1] = Forecast_RT_shadow_price_of_the_day
     
@@ -168,7 +259,7 @@ for as_of in tqdm(as_ofs_actual):
     # To choose one contingency and look at the actual shadow prices:
     # contents_actual['2024-04-08T04:00:00-05:00'].query('contingency_uid == "SBWDDBM5"').sort_values(['period'])
 
-with open('bc_actual_as_of.pkl', 'wb') as f:
+with open('bc_MISO_actual_as_of.pkl', 'wb') as f:
     pickle.dump(contents_actual, f)
 
 def _get_dataframe(muse_path, method=requests.get):
@@ -218,19 +309,24 @@ RT_bindings_NOT_caught_by_MUSE_and_FORECAST = []
 collected_results = {}
 RT_bindings_NOT_caught_by_MUSE_and_FORECAST = {}
 
+
 for as_of in tqdm(as_ofs_actual):
     early_date_for_MUSE_query = (as_of.as_of - datetime.timedelta(days=Num_of_days_to_look_back+1)).date().strftime('%Y-%m-%d')
     from_date = as_of.as_of.date().strftime('%Y-%m-%d')
     to_date = datetime.datetime.now().strftime('%Y-%m-%d')
     today = from_date
     tomorrow_date = (as_of.as_of + datetime.timedelta(days=1)).date().strftime('%Y-%m-%d')
-    # if not tomorrow_date == '2024-04-17':
+    # if not tomorrow_date == '2024-07-03':
     #     continue
 
     if (datetime.datetime.now() - datetime.timedelta(days=1)).date() <= as_of.as_of.date():
         continue
     
-    top_contingencies = find_top_congestions(contents_actual[f'{tomorrow_date}T04:00:00-05:00'], contents_forecast[tomorrow_date])
+    try:
+        top_contingencies = find_top_congestions(contents_actual[f'{tomorrow_date}T04:00:00-05:00'], contents_forecast[tomorrow_date])
+    except:
+        print(18)
+        top_contingencies = find_top_congestions(contents_actual[f'{tomorrow_date}T04:00:00-05:00'], contents_forecast[tomorrow_date])
 
     # collected_results[tomorrow_date] = collectedConfusionMatrix()
     collected_results[tomorrow_date] = []
@@ -238,7 +334,7 @@ for as_of in tqdm(as_ofs_actual):
 
     print(f'working on {tomorrow_date}')
     for monitored_uid, contingency_uid  in top_contingencies.index: 
-        # if not (contingency_uid == 'DNORSD85' and tomorrow_date == '2024-05-01'):
+        # if not (contingency_uid == 'EE13119' and tomorrow_date == '2024-07-04'):
         #     continue
 
         # if not 'SSHKCRI8' == contingency_uid:
@@ -266,24 +362,106 @@ for as_of in tqdm(as_ofs_actual):
         # MUSE_constraint_flow['time_stamp'] = pd.to_datetime(MUSE_constraint_flow['time_stamp'],utc=True).dt.tz_convert('US/Central')
 
         # find historical forecast #zzz
-        # url = f'https://api1.marginalunit.com/pr-forecast/ercot/constraint/lookahead_timeseries?monitored_uid={monitored_uid}&contingency_uid={contingency_uid}&stream_uid=load_100_wind_100_sol_100_ng_100_iir&from_datetime={from_date}'  #works but not what I need. This is foreacast for today's hours, which was created today in the morning
-        url = f'https://api1.marginalunit.com/pr-forecast/{run}/constraint?as_of={from_date}T04:00:00-05:00&as_of_match=nearest_before&stream_uid=load_100_wind_100_sol_100_ng_100_iir&monitored_uid={monitored_uid}&contingency_uid={contingency_uid}'  #forecast future days
-        content = _get_dfm(url)
-        if content is None:
-            print(f'Error 238476238476: no data for {constraint_uid}')
-            print(url)
-            continue
-        # content_orig = content
-        FORECAST_constraint_flow = pd.read_csv(content)
-        FORECAST_constraint_flow['timestamp'] = pd.to_datetime(FORECAST_constraint_flow['timestamp'].apply(lambda x:x[:-6])).apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S'))
-        FORECAST_constraint_flow_tomorrow = FORECAST_constraint_flow[FORECAST_constraint_flow['timestamp'].apply(lambda x:x[:10]) == tomorrow_date][['timestamp','rating','constraint_flow']].sort_values('timestamp').reset_index(drop=True)
+
+        if USE_SNOWFLAKE:
+            
+            query_binding_constraints_performance = f"""
+            SELECT *
+            FROM "pr-forecast"."20240620T1855Z"."constraint_flow"
+            WHERE as_of = '{from_date} 04:00:00.000 -05:00'
+            AND stream_uid = 'load_100_wind_100_sol_100_ng_100_iir'
+            AND monitored_uid= '{monitored_uid}'
+            AND contingency_uid = '{contingency_uid}'
+            order by contingency_uid, monitored_uid, as_of desc, TIMESTAMP desc
+            """
+            cursor.execute(query_binding_constraints_performance)
+            FORECAST_constraint_flow = snowflake_utils.execute_and_fetch(cnx, query_binding_constraints_performance)
+            FORECAST_constraint_flow.reset_index(drop=True, inplace=True)
+
+            FORECAST_QUERY_CONSTRAINT_RUN = True
+
+            FORECAST_constraint_flow['timestamp'] = pd.to_datetime(FORECAST_constraint_flow['timestamp'])
+            FORECAST_constraint_flow['timestamp'] = FORECAST_constraint_flow['timestamp'].apply(lambda x:str(x))
+
+            # find rating for the constraint:
+            query_for_rating = f"""
+            SELECT limit
+            FROM "pr-forecast"."20240620T1855Z"."binding_constraint_performance"
+            WHERE as_of = '{from_date} 04:00:00.000 -05:00'
+            AND stream_uid = 'load_100_wind_100_sol_100_ng_100_iir'
+            AND contingency_uid = '{contingency_uid}'
+            AND monitored_uid = '{monitored_uid}'
+            limit 1
+            """
+
+            cursor.execute(query_for_rating)
+            rating = snowflake_utils.execute_and_fetch(cnx, query_for_rating)
+            if len(rating) == 0:
+                print(f'Error 3485793475: no data for rating')
+                continue
+            
+            
+            FORECAST_constraint_flow['rating'] = rating['limit'][0]
+
+            FORECAST_constraint_flow_tomorrow = FORECAST_constraint_flow[FORECAST_constraint_flow['timestamp'].apply(lambda x:x[:10]) == tomorrow_date][['timestamp','rating','constraint_flow']].sort_values('timestamp').reset_index(drop=True)
+
+        else:
+        
+            # url = f'https://api1.marginalunit.com/pr-forecast/ercot/constraint/lookahead_timeseries?monitored_uid={monitored_uid}&contingency_uid={contingency_uid}&stream_uid=load_100_wind_100_sol_100_ng_100_iir&from_datetime={from_date}'  #works but not what I need. This is foreacast for today's hours, which was created today in the morning
+            url = f'https://api1.marginalunit.com/pr-forecast/{run}/constraint?as_of={from_date}T04:00:00-05:00&as_of_match=nearest_before&stream_uid=load_100_wind_100_sol_100_ng_100_iir&monitored_uid={monitored_uid}&contingency_uid={contingency_uid}'  #forecast future days
+            content = _get_dfm(url)
+            if content is None:
+                print(f'Error 238476238476: no data for {constraint_uid}')
+                print(url)
+                continue
+            # content_orig = content
+            FORECAST_constraint_flow = pd.read_csv(content)
+            FORECAST_constraint_flow['timestamp'] = pd.to_datetime(FORECAST_constraint_flow['timestamp'].apply(lambda x:x[:-6])).apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S'))
+            FORECAST_constraint_flow_tomorrow = FORECAST_constraint_flow[FORECAST_constraint_flow['timestamp'].apply(lambda x:x[:10]) == tomorrow_date][['timestamp','rating','constraint_flow']].sort_values('timestamp').reset_index(drop=True)
 
         if not len(FORECAST_constraint_flow_tomorrow) == 24  or not len(MUSE_constraint_flow_tomorrow) == 24:
             if len(FORECAST_constraint_flow_tomorrow) == 0 or len(MUSE_constraint_flow_tomorrow) == 0:
                 continue # no data for this day 
-            print('Error: . Expected 24 hours of data.   932849287394872')
+            print('Issue:  Expected 24 hours of data. Filling up missing forecast constraint_flow with zeros.   932849287394872')
+            
+            # Assuming 'timestamp_column_name' is the name of your timestamp column
+            timestamp_column_name = 'timestamp'
+
+            # Convert the timestamp column to datetime format
+            FORECAST_constraint_flow_tomorrow[timestamp_column_name] = pd.to_datetime(FORECAST_constraint_flow_tomorrow[timestamp_column_name])
+
+            # Determine the minimum and maximum dates
+            min_date = FORECAST_constraint_flow_tomorrow[timestamp_column_name].dt.date.min()
+            max_date = FORECAST_constraint_flow_tomorrow[timestamp_column_name].dt.date.max()
+
+            # Generate a complete datetime range covering every hour between the min and max dates
+            full_datetime_range = pd.date_range(start=min_date, end=max_date + pd.Timedelta(days=1), freq='H', closed='left')
+
+            # Create a DataFrame from this complete datetime range
+            df_full_range = pd.DataFrame(full_datetime_range, columns=[timestamp_column_name])
+
+
+
+            # Merge the new DataFrame with the original, ensuring all hours are included
+            # Convert both columns to be timezone-naive
+            df_full_range[timestamp_column_name] = df_full_range[timestamp_column_name].dt.tz_localize(None)
+            FORECAST_constraint_flow_tomorrow[timestamp_column_name] = FORECAST_constraint_flow_tomorrow[timestamp_column_name].dt.tz_localize(None)
+
+            # Now, perform the merge
+            FORECAST_constraint_flow_filled = pd.merge(df_full_range, 
+                                                    FORECAST_constraint_flow_tomorrow, 
+                                                    on=timestamp_column_name, 
+                                                    how='left')
+
+            # Fill missing 'constraint_flow' values with 0 and forward fill 'rating' values
+            FORECAST_constraint_flow_filled['constraint_flow'] = FORECAST_constraint_flow_filled['constraint_flow'].fillna(0)
+
+            # the following line fills up the rating values that are missing with the previous value
+            FORECAST_constraint_flow_filled['rating'] = FORECAST_constraint_flow_filled['rating'].ffill()
+
+            FORECAST_constraint_flow_tomorrow = FORECAST_constraint_flow_filled
             # DIE
-            continue
+            # continue
         
         ############ Create a DataFrame for RT shadow prices with all hours of the day
         RT_data_for_this_date = contents_actual[f'{tomorrow_date}T04:00:00-05:00'].query('monitored_uid == @monitored_uid and contingency_uid == @contingency_uid').sort_values('period').reset_index(drop=True)
@@ -330,14 +508,31 @@ for as_of in tqdm(as_ofs_actual):
 
         for percent_of_rating in percent_of_ratings:
             
-            # if now rating is given then skip:
-            if (all(FORECAST_constraint_flow_tomorrow['rating'] <= 10) is False) and (all(FORECAST_constraint_flow_tomorrow['rating'] > 10) is False):   #this is not a number!
-                break
-            
-            # if no constraint flow is given then skip
-            if (all(FORECAST_constraint_flow_tomorrow['constraint_flow'] <= 10) is False) and (all(FORECAST_constraint_flow_tomorrow['constraint_flow'] > 10) is False):   #this is not a number!
+            # Michael replaces this with the following: 2024-06-14
+            # # if no constraint flow is given then skip
+            # if (all(FORECAST_constraint_flow_tomorrow['constraint_flow'] <= 10) is False) and (all(FORECAST_constraint_flow_tomorrow['constraint_flow'] > 10) is False):   #this is not a number!
+            #     break
+            # if no rating is given then skip:
+            # if (all(FORECAST_constraint_flow_tomorrow['rating'] <= 10) is False) and (all(FORECAST_constraint_flow_tomorrow['rating'] > 10) is False):   #this is not a number!
+            #     break
+
+            # identify if the constraint_flow column in FORECAST_constraint_flow_tomorrow contains any non-numeric values
+            nan_constraint_flow = FORECAST_constraint_flow_tomorrow['constraint_flow'].isnull()
+            nan_rating = FORECAST_constraint_flow_tomorrow['rating'].isnull()
+
+            # Print rows with NaN in 'constraint_flow'
+            if nan_constraint_flow.any():
+                print("Rows with NaN were found in 'constraint_flow'.   883847928387483")
                 break
 
+            # Print rows with NaN in 'rating'
+            if nan_rating.any():
+                print("Rows with NaN were found in 'rating'.   8777347238847737")
+                break
+
+
+            
+            
             if len(contents_forecast[tomorrow_date].query('monitored_uid == @monitored_uid and contingency_uid == @contingency_uid')) > 0:
                 Forecast_RT_shadow_prices = contents_forecast[tomorrow_date].query('monitored_uid == @monitored_uid and contingency_uid == @contingency_uid')
                 # Forecast_RT_shadow_prices represents 24 hours of a day. However, in the timestamp there may be only some of the 24 hours. Wherever Forecast_RT_shadow_prices' timestamp does not exist we have to add shadow price = 0:
@@ -361,7 +556,12 @@ for as_of in tqdm(as_ofs_actual):
             conf_matrix.FN = (  (RT_data_for_this_date['shadow_price'] > 0)  & (FORECAST_constraint_flow_tomorrow['constraint_flow'] < used_rating) & (Forecast_RT_shadow_prices_array == 0)).sum()   
             ### conf_matrix.FN += (  (RT_data_for_this_date['shadow_price'] == 0)  & (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating) | (Forecast_RT_shadow_prices_array > 0)).sum()
             conf_matrix.TP = (    (RT_data_for_this_date['shadow_price'] > 0) & ((FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating) | (Forecast_RT_shadow_prices_array > 0) )).sum()
-            conf_matrix.FP = (  ((RT_data_for_this_date['shadow_price'] == 0)) & ( (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= FORECAST_constraint_flow_tomorrow['rating']) | (Forecast_RT_shadow_prices_array > 0) ) ).sum()
+            
+            # The following line is changed only for the MISO snowflake version, in order to make the number of FP results lower:
+            # conf_matrix.FP = (  ((RT_data_for_this_date['shadow_price'] == 0)) & ( (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= FORECAST_constraint_flow_tomorrow['rating']) | (Forecast_RT_shadow_prices_array > 0) ) ).sum()
+            
+            # conf_matrix.FP = (  ((RT_data_for_this_date['shadow_price'] == 0)) &  (FORECAST_constraint_flow_tomorrow['constraint_flow'] >= used_rating) ).sum()
+            conf_matrix.FP = (  ((RT_data_for_this_date['shadow_price'] == 0)) &  (Forecast_RT_shadow_prices_array > 0) ).sum()
 
             
 
@@ -371,7 +571,12 @@ for as_of in tqdm(as_ofs_actual):
             forecast_RT_shadow_price = top_contingencies.loc[(monitored_uid, contingency_uid)].forecast_shadow_price
 
             ans, constraint_data = calc_collected_confusion_metrics(conf_matrix, tomorrow_date, monitored_uid, contingency_uid, percent_of_rating, percent_of_rating, obsered_RT_shadow_price, forecast_RT_shadow_price)
-            collected_results[tomorrow_date].append(constraint_data)
+            if constraint_data is None:
+                continue
+                # print(18)
+                # ans, constraint_data = calc_collected_confusion_metrics(conf_matrix, tomorrow_date, monitored_uid, contingency_uid, percent_of_rating, percent_of_rating, obsered_RT_shadow_price, forecast_RT_shadow_price)
+            else:
+                collected_results[tomorrow_date].append(constraint_data)
                 
             # #if this case had RT shadow price > 0 but the forecast was under the used_rating then this is also a FN case
             # if conf_matrix.FN + conf_matrix.TP + conf_matrix.FP == 0:
@@ -384,7 +589,7 @@ for as_of in tqdm(as_ofs_actual):
             
 data_to_save = {'collected_results': collected_results, 'RT_bindings_NOT_caught_by_MUSE_and_FORECAST': RT_bindings_NOT_caught_by_MUSE_and_FORECAST, 'percent_of_ratings': percent_of_ratings}
 today_date = datetime.datetime.now().strftime('%Y-%m-%d')
-with open(f'weekly_report_saved_data_as_of_{today_date}.pkl', 'wb') as f:
+with open(f'weekly_report_saved_data_MISO_as_of_{today_date}.pkl', 'wb') as f:
     pickle.dump(data_to_save, f)
     f.flush() 
     os.fsync(f.fileno())
