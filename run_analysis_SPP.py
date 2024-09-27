@@ -41,6 +41,8 @@ today_date = datetime.datetime.now().strftime("%Y-%m-%d")
 # today_date = '2024-05-17'
 # today_date = '2024-05-30'
 # today_date = '2024-07-10'
+# today_date = "2024-09-19"
+
 data_to_save = pickle.load(
     open(f"weekly_report_saved_data_SPP_as_of_{today_date}.pkl", "rb")
 )
@@ -79,7 +81,11 @@ for date in collected_results_orig:
     # if date > '2024-07-08' and date <= '2024-07-15':
     # if date > '2024-08-01' and date <= '2024-08-08':
     # if date > '2024-08-01' and date <= '2024-08-15':
-    if date > "2024-08-16" and date <= "2024-08-25":
+    # if date > "2024-08-16" and date <= "2024-08-25":
+    # if date > "2024-08-23" and date <= "2024-08-30":
+    # if date > "2024-08-30" and date <= "2024-09-06":
+    # if date > "2024-09-04" and date <= "2024-09-13":
+    if date > "2024-09-19" and date <= "2024-09-26":
 
         if collected_results_orig[date]:
             collected_results[date] = collected_results_orig[date]
@@ -111,7 +117,12 @@ for date in RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig:
     # if date > '2024-07-08' and date <= '2024-07-15':
     # if date > '2024-08-01' and date <= '2024-08-08':
     # if date > '2024-08-01' and date <= '2024-08-15':
-    if date > "2024-08-16" and date <= "2024-08-25":
+    # if date > "2024-08-16" and date <= "2024-08-25":
+    # if date > "2024-08-23" and date <= "2024-08-30":
+    # if date > "2024-08-30" and date <= "2024-09-06":
+    # if date > "2024-09-04" and date <= "2024-09-13":
+    if date > "2024-09-19" and date <= "2024-09-26":
+
         RT_bindings_NOT_caught_by_MUSE_and_FORECAST[date] = (
             RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig[date]
         )

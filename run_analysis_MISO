@@ -76,9 +76,14 @@ for date in collected_results_orig:
     # if date > '2024-07-04' and date <= '2024-07-25':
     # if date > '2024-07-02' and date <= '2024-07-09':
     # if date > '2024-07-10' and date <= '2024-07-17':
-    if date > "2024-07-28" and date <= "2024-08-07":
-        # if date > '2024-08-06' and date <= '2024-08-15':
-        # if date > '2024-08-16' and date <= '2024-08-25':
+    # if date > "2024-07-28" and date <= "2024-08-07":
+    # if date > '2024-08-06' and date <= '2024-08-15':
+    # if date > '2024-08-16' and date <= '2024-08-25':
+    # if date > "2024-08-23" and date <= "2024-08-30":
+    # if date > "2024-08-27" and date <= "2024-09-04":
+    # if date > "2024-09-04" and date <= "2024-09-13":
+    # if date > "2024-09-13" and date <= "2024-09-19":
+    if date > "2024-09-19" and date <= "2024-09-26":
 
         if collected_results_orig[date]:
             collected_results[date] = collected_results_orig[date]
@@ -106,9 +111,15 @@ for date in RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig:
     # if date > '2024-07-02' and date <= '2024-07-09':
     # if date > '2024-07-10' and date <= '2024-07-17':
     # if date > '2024-07-31' and date <= '2024-08-07':
-    if date > "2024-07-28" and date <= "2024-08-07":
-        # if date > '2024-08-06' and date <= '2024-08-15':
-        # if date > '2024-08-16' and date <= '2024-08-25':
+    # if date > "2024-07-28" and date <= "2024-08-07":
+    # if date > '2024-08-06' and date <= '2024-08-15':
+    # if date > '2024-08-16' and date <= '2024-08-25':
+    # if date > "2024-08-23" and date <= "2024-08-30":
+    # if date > "2024-08-27" and date <= "2024-09-04":
+    # if date > "2024-09-04" and date <= "2024-09-13":
+    # if date > "2024-09-13" and date <= "2024-09-19":
+    if date > "2024-09-19" and date <= "2024-09-26":
+
         RT_bindings_NOT_caught_by_MUSE_and_FORECAST[date] = (
             RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig[date]
         )
