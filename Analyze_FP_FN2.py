@@ -26,16 +26,15 @@ from matplotlib.patches import Circle
 import numpy as np
 import os
 
-# run = "spp"
-run = "miso"
+run = "spp"
+# run = "miso"
 # run = "ercot"
 
 run_for_actual_shadow_prices = f"{run}"
 
-min_analysis_date = "2024-10-15"
-max_analysis_date = "2024-10-21"
-# min_analysis_date = "2024-09-01"
-# max_analysis_date = "2024-09-30"
+
+min_analysis_date = "2024-11-08"
+max_analysis_date = "2024-11-15"
 
 # To know which runs are available, paste this in the browser:
 # https://api1.marginalunit.com/pr-forecast/runs
@@ -45,7 +44,12 @@ max_analysis_date = "2024-10-21"
 # run = "spp-1009"
 # run = "miso-1008"
 # run = "miso-1023"
-run = "miso"
+# run = "miso"
+run = "spp_poc"
+
+
+# run = "miso_1112"
+# run_for_actual_shadow_prices = "miso"
 
 # Use the following to compare versions of ERCOT
 if False:

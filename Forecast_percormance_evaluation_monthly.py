@@ -16,8 +16,10 @@ SAVE_DATA = False
 USE_PERCENTILE = False
 
 # ISO = "spp"
-ISO = "miso"
+# ISO = "miso"
 # ISO = "ercot"
+ISO = "ercot_prt_crcl"
+ISO_name = "ercot"
 
 plt.rcParams["figure.figsize"] = (15, 7)
 
@@ -58,6 +60,12 @@ MARKET_DATA = {
         "MARKET": "rt",
         "COLLECTION": "ercot-rt-se",
         "RUN": "ercot",
+        "STREAM_UID": "load_100_wind_100_sol_100_ng_100_iir",
+    },
+    "ercot_prt_crcl": {
+        "MARKET": "rt",
+        "COLLECTION": "ercot-rt-se",
+        "RUN": "ercot_prt_crcl",
         "STREAM_UID": "load_100_wind_100_sol_100_ng_100_iir",
     },
 }
@@ -154,7 +162,7 @@ def find_optimal_predictor(df_hr):
 
 # 1) Get binding constraints
 df_bc = _get_dfm(
-    f"https://api1.marginalunit.com/constraintdb/{ISO}/binding_constraints?start_datetime=2024-05-01T00:00:00-05:00&end_datetime=2025-01-01T00:00:00-05:00&market={MARKET}"
+    f"https://api1.marginalunit.com/constraintdb/{ISO_name}/binding_constraints?start_datetime=2024-05-01T00:00:00-05:00&end_datetime=2025-01-01T00:00:00-05:00&market={MARKET}"
 )
 FROM_DATETIME = "2024-05-01T00:00:00-05:00"
 
@@ -164,7 +172,7 @@ dfs = []
 if SAVE_DATA:
     for ind, row in enumerate(df_bc.itertuples()):
 
-        # if ind > 2:
+        # if ind > 6:
         #     break
 
         print(f"{ind}/{len(df_bc)}")
@@ -177,12 +185,12 @@ if SAVE_DATA:
         try:
             # Shadow price
             dft = _get_dfm(
-                f"https://api1.marginalunit.com/constraintdb/{ISO}/{MARKET}/timeseries?"
+                f"https://api1.marginalunit.com/constraintdb/{ISO_name}/{MARKET}/timeseries?"
                 f"monitored_uid={monitored_uid}&contingency_uid={contingency_uid}&"
                 f"start_datetime={FROM_DATETIME}&end_datetime=2025-01-01T00:00:00-05:00"
             )
             dft["period"] = pd.to_datetime(dft.period, utc=True).dt.tz_convert(
-                ISO_TZ[ISO]
+                ISO_TZ[ISO_name]
             )
             dft = dft.set_index("period")
 
@@ -192,7 +200,7 @@ if SAVE_DATA:
                 f"monitored_uid={monitored_uid}&contingency_uid={contingency_uid}"
             )
             df_r["timestamp"] = pd.to_datetime(df_r.timestamp, utc=True).dt.tz_convert(
-                ISO_TZ[ISO]
+                ISO_TZ[ISO_name]
             )
             df_r = df_r.set_index("timestamp")
 
@@ -203,7 +211,7 @@ if SAVE_DATA:
             )
             df_fcst["timestamp"] = pd.to_datetime(
                 df_fcst.timestamp, utc=True
-            ).dt.tz_convert(ISO_TZ[ISO])
+            ).dt.tz_convert(ISO_TZ[ISO_name])
             df_fcst = df_fcst.set_index("timestamp")
 
             dfm = pd.merge(
