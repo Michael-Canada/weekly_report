@@ -32,9 +32,15 @@ from create_FN_FP_RT_shadow_price import plot_FN_FP_RT_shadow_price
 from scipy.stats import norm
 
 # plt.ion()
-# run = "SPP"
-run = "MISO"
+run = "SPP"
+# run = "MISO"
 # run = "ERCOT"
+# run = "MISO_1112"
+# run = "ercot_prt_crcl"
+# run = "MISO_1213"
+# run = "miso_ng"
+# run = "SPP_1210"
+# run = "SPP_1212"
 
 # list of hyperparameters
 subplotting = False
@@ -48,7 +54,7 @@ today_date = datetime.datetime.now().strftime("%Y-%m-%d")
 # today_date = '2024-07-10'
 # today_date = '2024-07-10'
 data_to_save = pickle.load(
-    open(f"weekly_report_saved_data_{run}_as_of_{today_date}.pkl", "rb")
+    open(f"weekly_report_saved_data_{run.upper()}_as_of_{today_date}.pkl", "rb")
 )
 collected_results_orig = data_to_save["collected_results"]
 percent_of_ratings = data_to_save["percent_of_ratings"]
@@ -67,8 +73,8 @@ for date in collected_results_orig:
     # if date > '2024-04-19' and date <= '2024-04-26':
     # if date > '2024-04-26' and date <= '2024-05-03':
     # if date > "2024-10-10" and date <= "2024-10-18":
-    # if date > "2024-10-18" and date <= "2024-10-25":
-    if date > "2024-11-01" and date <= "2024-11-08":
+    # if date > "2024-11-08" and date <= "2024-11-15":
+    if date > "2024-12-06" and date <= "2024-12-13":
 
         if collected_results_orig[date]:
             collected_results[date] = collected_results_orig[date]
@@ -82,8 +88,8 @@ for date in RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig:
     # if date > "2024-09-19" and date <= "2024-09-26":
     # if date > "2024-09-26" and date <= "2024-10-10":
     # if date > "2024-10-10" and date <= "2024-10-18":
-    # if date > "2024-10-18" and date <= "2024-10-25":
-    if date > "2024-11-01" and date <= "2024-11-08":
+    # if date > "2024-11-08" and date <= "2024-11-15":
+    if date > "2024-12-06" and date <= "2024-12-13":
 
         RT_bindings_NOT_caught_by_MUSE_and_FORECAST[date] = (
             RT_bindings_NOT_caught_by_MUSE_and_FORECAST_orig[date]

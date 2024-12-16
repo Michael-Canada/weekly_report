@@ -29,16 +29,23 @@ import os
 import pickle
 
 PURPOSE = "weekly_report"
+# PURPOSE = "annual_report"
 
 # run = "SPP"
-run = "MISO"
+# run = "MISO"
 # run = "ERCOT"
 
 # for the new plan of comparing version we need to find the proper run. This is the same one that we have to use in the file 'analyze_FP_FN.py' right after the comment "# the only change is the next line"
 # Where to find the runs and schemes:  https://api1.marginalunit.com/pr-forecast/runs
 # run = "SPP-1009"
 # run = "miso-1008"
-run = "miso"
+# run = "miso_1112"
+# run = "miso_ng"
+# run = "miso_1202"
+# run = "miso"
+
+# run = "ercot"
+run = "ercot_prt_crcl"
 
 
 def TP(row):
@@ -87,10 +94,10 @@ if PURPOSE == "weekly_report":
     FP_is_Dominant = (all_contingencies_OLD.groupby(["monitored_uid", "contingency_uid"]).agg({"shadow_price": "sum","forecast_shadow_price": "sum","TP": "sum","FN": "sum","FP": "sum",}).reset_index())
     FP_is_Dominant = FP_is_Dominant.rename(columns={"shadow_price": "Accumulated_shadow_price"})
     FP_is_Dominant = FP_is_Dominant.rename(columns={"forecast_shadow_price": "Accumulated_forecast_shadow_price"})
-    FP_is_Dominant = FP_is_Dominant.sort_values(["FP","Accumulated_forecast_shadow_price"], ascending=False)[:100]
+    FP_is_Dominant = FP_is_Dominant.sort_values(["FP","Accumulated_forecast_shadow_price"], ascending=False)[:1000]
 
     FN_is_Dominant = (all_contingencies_OLD.groupby(["monitored_uid", "contingency_uid"]).agg({"shadow_price": "sum","forecast_shadow_price": "sum","TP": "sum","FN": "sum","FP": "sum",}).reset_index())
-    FN_is_Dominant = FN_is_Dominant.sort_values(["FN", "shadow_price"], ascending=False)[:100]
+    FN_is_Dominant = FN_is_Dominant.sort_values(["FN", "shadow_price"], ascending=False)[:1000]
 
 else:
     ####### Forecast Version Comparison FP ########
@@ -117,6 +124,7 @@ else:
 
 # plt.plot(FP_is_Dominant["FP_shadow_price_percentage"].values)
 
+FP_is_Dominant.sort_values('Accumulated_forecast_shadow_price') / FP_is_Dominant['Accumulated_forecast_shadow_price'].sum()
 print(18)
 
 if False:

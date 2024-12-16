@@ -26,6 +26,8 @@ from matplotlib.patches import Circle
 import numpy as np
 import os
 
+WITH_IIR = False
+
 run = "spp"
 # run = "miso"
 # run = "ercot"
@@ -33,8 +35,8 @@ run = "spp"
 run_for_actual_shadow_prices = f"{run}"
 
 
-min_analysis_date = "2024-11-08"
-max_analysis_date = "2024-11-15"
+min_analysis_date = "2024-01-01"
+max_analysis_date = "2024-12-01"
 
 # To know which runs are available, paste this in the browser:
 # https://api1.marginalunit.com/pr-forecast/runs
@@ -43,9 +45,13 @@ max_analysis_date = "2024-11-15"
 # the only change is the next line. Also, change the Num_of_days_to_look_back to a range of dates.
 # run = "spp-1009"
 # run = "miso-1008"
-# run = "miso-1023"
+# run = "miso_ng"
 # run = "miso"
-run = "spp_poc"
+# run = "miso_1202"
+# run = "ercot"
+# run = "ercot_prt_crcl"
+# run = "ercot_20240909"
+run = "spp"
 
 
 # run = "miso_1112"
@@ -63,7 +69,7 @@ MIN_REQUIRED_NUM_OF_HOURS_IN_CONTEGTION = 0
 
 # list of hyperparameters
 max_num_congestions_per_day = 1000  # 30
-Num_of_days_to_look_back = 30  # 25
+Num_of_days_to_look_back = 400  # 25
 percent_of_ratings = [0.99, 0.95, 0.9, 0.85, 0.8]
 # percent_of_ratings = [0.99, 0.8]
 
@@ -200,9 +206,13 @@ for as_of in tqdm(as_ofs_actual[-1::-1]):
         }
     )
 
-    url_FP = f"https://api1.marginalunit.com/pr-forecast/{run}/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T04%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100_iir"
-    url_FP_winter = f"https://api1.marginalunit.com/pr-forecast/{run}/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T05%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100_iir"
-    # url_FP = f"https://api1.marginalunit.com/pr-forecast/ercot/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T04%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100_iir"
+    if WITH_IIR:
+        url_FP = f"https://api1.marginalunit.com/pr-forecast/{run}/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T04%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100_iir"
+        url_FP_winter = f"https://api1.marginalunit.com/pr-forecast/{run}/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T05%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100_iir"
+        # url_FP = f"https://api1.marginalunit.com/pr-forecast/ercot/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T04%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100_iir"
+    else:
+        url_FP = f"https://api1.marginalunit.com/pr-forecast/{run}/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T04%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100"
+        url_FP_winter = f"https://api1.marginalunit.com/pr-forecast/{run}/binding_constraint?as_of={date.strftime('%Y-%m-%d')}T05%3A00%3A00-05%3A00&resample=H&include_empty_timestamps=true&stream_uid=load_100_wind_100_sol_100_ng_100"
 
     content_FP = _get_dfm(url_FP)
     if content_FP is None:
@@ -214,7 +224,7 @@ for as_of in tqdm(as_ofs_actual[-1::-1]):
     No_FP_data_was_found = False
     if len(df_bc_actual_FP) == 0:
         content_FP = _get_dfm(url_FP_winter)
-        print("unsing Winter URL")
+        print("using Winter URL")
         df_bc_actual_FP = pd.read_csv(content_FP)
     if len(df_bc_actual_FP) == 0:
         print("No forecast contingencies were found")
@@ -373,11 +383,11 @@ for as_of in tqdm(as_ofs_actual):
     if date_strp < min_date or date_strp > max_date:
         continue
 
-    early_date_for_MUSE_query = (
-        (as_of.as_of - datetime.timedelta(days=Num_of_days_to_look_back + 1))
-        .date()
-        .strftime("%Y-%m-%d")
-    )
+    # early_date_for_MUSE_query = (
+    #     (as_of.as_of - datetime.timedelta(days=Num_of_days_to_look_back + 1))
+    #     .date()
+    #     .strftime("%Y-%m-%d")
+    # )
     from_date = as_of.as_of.date().strftime("%Y-%m-%d")
     to_date = datetime.datetime.now().strftime("%Y-%m-%d")
     today = from_date
